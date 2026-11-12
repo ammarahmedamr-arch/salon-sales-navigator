@@ -14,16 +14,16 @@ const people = ["نورة", "ريم", "سارة", "خالد", "لمى", "أمل"
 const outcomes = ["غير محدد", "مهتم", "مهتم", "غير مهتم", "طلب عرض", "تجربة/ديمو", "يحتاج متابعة لاحقًا", "مشترك"] as const;
 const statuses = ["لم يتم التواصل", "تم التواصل", "في انتظار الرد", "ردّ", "متابعة مطلوبة"] as const;
 export const initialClients: Client[] = salons.map(([name, city, businessType], i) => {
-  const outcome = i < 7 ? "غير محدد" : outcomes[i % outcomes.length];
+  const outcome = (i < 7 ? "غير محدد" : outcomes[i % outcomes.length] ?? "غير محدد") as Client["outcome"];
   const contacted = i >= 7;
   const next = i % 5 === 0 ? makeFollowUpDate(-i % 9 - 1) : i % 5 === 1 ? makeFollowUpDate(0) : i % 5 === 2 ? makeFollowUpDate(5) : null;
   const phone = `9665${String(10000000 + (i * 391827) % 89999999).padStart(8, "0")}`;
   return {
     id: `client-${String(i + 1).padStart(3, "0")}`, code: `SAL-${String(i + 1).padStart(4, "0")}`, name, city,
-    business_type: businessType, contact_person: people[i % people.length], phone,
-    website_url: i % 3 === 0 ? `https://instagram.com/salon${i + 1}` : "", source: ["خرائط Google", "إنستجرام", "موقع إلكتروني", "دليل أعمال", "إحالة", "بحث يدوي", "مصدر آخر"][i % 7] as Client["source"],
+    business_type: businessType, contact_person: people[i % people.length] ?? "", phone,
+    website_url: i % 3 === 0 ? `https://instagram.com/salon${i + 1}` : "", source: (["خرائط Google", "إنستجرام", "موقع إلكتروني", "دليل أعمال", "إحالة", "بحث يدوي", "مصدر آخر"][i % 7] ?? "مصدر آخر") as Client["source"],
     created_at: new Date(Date.now() - i * 86_400_000 * 3).toISOString(), priority: i % 4 === 0 ? "عالية" : i % 4 === 1 ? "منخفضة" : "متوسطة",
-    contact_status: contacted ? statuses[i % statuses.length] : "لم يتم التواصل", outcome,
+    contact_status: (contacted ? statuses[i % statuses.length] : "لم يتم التواصل") as Client["contact_status"], outcome,
     last_contact_at: contacted ? new Date(Date.now() - (i % 12 + 1) * 86_400_000).toISOString() : null,
     next_follow_up_date: next, notes: i % 2 ? "مهتمة بحجوزات المواعيد، طلبت التواصل بعد انتهاء الموسم." : "التركيز على نظام الاشتراكات وعروض الافتتاح.",
     owner: TEAM_MEMBERS[i % TEAM_MEMBERS.length]!, chat_url: "", follow_up_state: "", attempts_count: 0,
@@ -39,7 +39,7 @@ export const initialLogs: ContactLog[] = Array.from({ length: 60 }, (_, i) => {
   const result = results[i % results.length]!;
   return {
     id: `activity-${String(i + 1).padStart(3, "0")}`, code: `ACT-${String(i + 1).padStart(5, "0")}`,
-    client_id: client?.id ?? "", contacted_at: contactedAt.toISOString(), channel: channels[i % channels.length]!,
+    client_id: client?.id ?? "", contacted_at: contactedAt.toISOString(), channel: (channels[i % channels.length] ?? "واتساب") as ContactLog["channel"],
     attempt_type: i % 4 === 0 ? "رسالة أولى" : i % 4 === 1 ? "متابعة أولى" : i % 4 === 2 ? "مكالمة" : "متابعة بعد العرض",
     replied: result === "لم يرد" ? "لا" : i % 3 === 0 ? "لم يتضح" : "نعم", result,
     next_follow_up_date: client?.next_follow_up_date ?? null,

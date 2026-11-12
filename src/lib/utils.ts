@@ -1,4 +1,11 @@
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
 import type { Client, FollowUpState } from "./types";
+
+/** Merge Tailwind classes safely (shadcn/ui standard). */
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
 
 export function dateKey(value: Date | string): string {
   const date = value instanceof Date ? value : new Date(value);

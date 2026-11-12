@@ -10,15 +10,14 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
-.output
-.vinxi
-.tanstack/**
-.nitro
 *.local
+.env
+.env.*
+!.env.example
 
-# Wrangler / Cloudflare
-.wrangler/
-.dev.vars
+# PocketBase local files
+backend/pocketbase
+backend/pb_data/
 
 # Editor directories and files
 .vscode/*
@@ -30,3 +29,4 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+*.tsbuildinfo

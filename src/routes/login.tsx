@@ -8,7 +8,6 @@ import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
 
 export const Route = createFileRoute("/login")({
-  head: () => ({ meta: [{ title: "تسجيل الدخول | OJLinker CRM" }, { name: "description", content: "تسجيل الدخول إلى منصة متابعة مبيعات الصالونات OJLinker." }, { property: "og:title", content: "تسجيل الدخول | OJLinker CRM" }, { property: "og:description", content: "إدارة العملاء ومتابعات فريق المبيعات." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary_large_image" }] }),
   component: LoginPage,
 });
 function LoginPage() {
