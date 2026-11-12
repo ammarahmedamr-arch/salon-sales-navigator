@@ -18,6 +18,7 @@ npm run dev                   # http://localhost:5173
 
 > PocketBase must be running on port 8090 for API calls to work.
 > With `VITE_USE_MOCK=true` the app uses an in-memory mock (no PocketBase needed).
+> **Security Note:** `npm run dev` is strictly for local development or access via an SSH tunnel (`ssh -L 5173:localhost:5173 user@vps`). Do not expose the Vite dev server directly to the public internet. Production uses static files in `dist/` served securely via Caddy.
 
 ## Build
 
