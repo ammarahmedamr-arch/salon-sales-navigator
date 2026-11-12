@@ -26,10 +26,10 @@ export function AppShell({ user }: { user: AppUser }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileSearch, setMobileSearch] = useState(false);
   const [search, setSearch] = useState("");
-  const clients = useClients();
+  const clients = useClients({ perPage: 1000 });
   const users = useTeamUsers();
   const activeUsers = users.data?.length ?? 4;
-  const clientRows = clients.data ?? [];
+  const clientRows = clients.data?.items ?? [];
   const dueCount = clientRows.filter((client) => {
     const state = computeFollowUpState(client.next_follow_up_date, client.outcome);
     return state === "متأخرة" || state === "مستحقة";
