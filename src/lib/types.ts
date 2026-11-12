@@ -179,4 +179,5 @@ export interface DashboardStats {
   funnel: { label: string; count: number; fill: string }[];
   cities: { name: string; value: number }[];
   followUps: Client[];
+  recentLogs?: any[] | undefined;
 }

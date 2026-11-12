@@ -115,6 +115,16 @@ export function waLink(phone: string): string {
   return `https://wa.me/${normalizePhone(phone)}`;
 }
 
+export function buildWhatsAppUrl(phone: string, text?: string): string {
+  const base = waLink(phone);
+  return text ? `${base}?text=${encodeURIComponent(text)}` : base;
+}
+
+export function formatArabicDate(value: string | null | undefined): string {
+  if (!value) return "—";
+  return formatDateTime(value);
+}
+
 /**
  * Measures relative calendar days between reference date (Riyadh) and a given date.
  */

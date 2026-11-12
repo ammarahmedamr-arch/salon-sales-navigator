@@ -213,11 +213,11 @@ describe("PocketBase Backend Integration Tests", () => {
         outcome: "غير محدد",
       });
 
-      expect(c1.code).toMatch(/^SAL-\d{4}$/);
-      expect(c2.code).toMatch(/^SAL-\d{4}$/);
+      expect(c1["code"]).toMatch(/^SAL-\d{4}$/);
+      expect(c2["code"]).toMatch(/^SAL-\d{4}$/);
 
-      const num1 = parseInt(c1.code.replace("SAL-", ""), 10);
-      const num2 = parseInt(c2.code.replace("SAL-", ""), 10);
+      const num1 = parseInt(c1["code"].replace("SAL-", ""), 10);
+      const num2 = parseInt(c2["code"].replace("SAL-", ""), 10);
       expect(num2).toBe(num1 + 1);
     });
 
@@ -242,7 +242,7 @@ describe("PocketBase Backend Integration Tests", () => {
         result: "مهتم",
       });
 
-      expect(log.code).toMatch(/^ACT-\d{5}$/);
+      expect(log["code"]).toMatch(/^ACT-\d{5}$/);
     });
   });
 
@@ -260,7 +260,7 @@ describe("PocketBase Backend Integration Tests", () => {
         outcome: "غير محدد",
       });
 
-      expect(client.phone).toBe("966598765432");
+      expect(client["phone"]).toBe("966598765432");
     });
 
     it("rejects non-Saudi or invalid mobile numbers with HTTP 400", async () => {
@@ -331,10 +331,10 @@ describe("PocketBase Backend Integration Tests", () => {
 
       // Verify DB record
       const refreshedClient = await agentPb.collection("clients").getOne(client.id);
-      expect(refreshedClient.contact_status).toBe("ردّ");
-      expect(refreshedClient.outcome).toBe("مهتم");
-      expect(refreshedClient.last_contact_at).toContain("2026-11-12");
-      expect(refreshedClient.next_follow_up_date).toContain("2026-11-16");
+      expect(refreshedClient["contact_status"]).toBe("ردّ");
+      expect(refreshedClient["outcome"]).toBe("مهتم");
+      expect(refreshedClient["last_contact_at"]).toContain("2026-11-12");
+      expect(refreshedClient["next_follow_up_date"]).toContain("2026-11-16");
     });
 
     it("forces status 'تم إيقاف التواصل' and outcome 'لا يرغب بالتواصل' and clears follow_up when result is 'طلب عدم التواصل'", async () => {
@@ -370,9 +370,9 @@ describe("PocketBase Backend Integration Tests", () => {
 
       expect(response.status).toBe(200);
       const refreshedClient = await agentPb.collection("clients").getOne(client.id);
-      expect(refreshedClient.contact_status).toBe("تم إيقاف التواصل");
-      expect(refreshedClient.outcome).toBe("لا يرغب بالتواصل");
-      expect(refreshedClient.next_follow_up_date).toBe("");
+      expect(refreshedClient["contact_status"]).toBe("تم إيقاف التواصل");
+      expect(refreshedClient["outcome"]).toBe("لا يرغب بالتواصل");
+      expect(refreshedClient["next_follow_up_date"]).toBe("");
     });
   });
 
