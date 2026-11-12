@@ -1,0 +1,3 @@
+- [ ] Create typed Arabic salon/log domain, seeded mock API, async TanStack Query hooks, local fake auth, and domain utility tests.
+- [ ] Build RTL design tokens, shared authenticated navigation shell, login, dashboard, client management, follow-ups, activity log, and settings/CSV export.
+- [ ] Verify routes, key user workflows, tests, responsive rendering, and current preview build diagnostics.
