@@ -1,0 +1,24 @@
+services:
+  ojlinker-crm:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ojlinker-crm
+    restart: unless-stopped
+    networks:
+      - root_default
+    volumes:
+      - ./backend/pb_data:/app/backend/pb_data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=root_default"
+      - "traefik.http.routers.ojlinker-crm.rule=Host(`crm.ojlinker.com.sa`)"
+      - "traefik.http.routers.ojlinker-crm.priority=2000"
+      - "traefik.http.routers.ojlinker-crm.entrypoints=websecure"
+      - "traefik.http.routers.ojlinker-crm.tls=true"
+      - "traefik.http.routers.ojlinker-crm.tls.certresolver=letsencrypt"
+      - "traefik.http.services.ojlinker-crm.loadbalancer.server.port=8090"
+
+networks:
+  root_default:
+    external: true

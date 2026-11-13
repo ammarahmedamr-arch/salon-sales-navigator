@@ -8,7 +8,7 @@ Type=simple
 User=ojlinker
 Group=ojlinker
 WorkingDirectory=/var/www/ojlinker-crm/backend
-ExecStart=/var/www/ojlinker-crm/backend/pocketbase serve --http=127.0.0.1:8090 --dir=/var/www/ojlinker-crm/backend/pb_data
+ExecStart=/var/www/ojlinker-crm/backend/pocketbase serve --http=127.0.0.1:8090 --dir=/var/www/ojlinker-crm/backend/pb_data --publicDir=/var/www/ojlinker-crm/dist --indexFallback=true
 Restart=always
 RestartSec=5s
 
