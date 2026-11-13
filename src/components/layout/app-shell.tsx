@@ -5,7 +5,7 @@ import { Activity, ArrowUpRight, Bell, ChevronDown, Command, LayoutDashboard, Lo
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useClients, useTeamUsers } from "@/hooks/use-crm";
+import { useClients, useCrmRealtime, useTeamUsers } from "@/hooks/use-crm";
 import { api } from "@/lib/api";
 import { computeFollowUpState } from "@/lib/utils";
 import type { AppUser } from "@/lib/types";
@@ -19,6 +19,7 @@ const navigation = [
   { to: "/settings" as const, label: "الإعدادات", icon: Settings },
 ];
 export function AppShell({ user }: { user: AppUser }) {
+  useCrmRealtime();
   const location = useLocation();
   const navigate = useNavigate();
   const router = useRouter();
@@ -65,7 +66,7 @@ export function AppShell({ user }: { user: AppUser }) {
         <div className="flex shrink-0 items-center gap-2"><Button variant="ghost" size="icon" title={dark ? "الوضع الفاتح" : "الوضع الداكن"} aria-label={dark ? "الوضع الفاتح" : "الوضع الداكن"} onClick={toggleTheme}>{dark ? <Sun /> : <Moon />}</Button><div className="hidden h-8 w-px bg-border sm:block" /><div className="group relative"><Button variant="ghost" className="h-10 gap-2 px-2"><Avatar className="size-8 border border-border"><AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">{user.name.slice(0,1)}</AvatarFallback></Avatar><span className="hidden max-w-28 truncate text-sm font-medium sm:inline">{user.name}</span><ChevronDown className="size-3.5 text-muted-foreground" /></Button><div className="absolute end-0 top-full z-40 hidden w-52 pt-2 group-focus-within:block group-hover:block"><div className="rounded-xl border bg-popover p-2 shadow-lg"><p className="truncate px-3 py-2 text-xs text-muted-foreground">{user.email}</p><Button variant="ghost" className="w-full justify-start gap-2" onClick={signOut}><LogOut className="size-4" />تسجيل الخروج</Button></div></div></div></div>
       </header>
       <div className="page-content"><Outlet /></div>
-      <nav className="mobile-tabbar md:hidden" aria-label="التنقل الرئيسي">{navigation.filter((item) => item.to !== "/settings").map(({ to, label, icon: Icon }) => { const active = to === "/" ? location.pathname === "/" : location.pathname.startsWith(to); return <Link key={to} to={to} className={`mobile-tab ${active ? "mobile-tab-active" : ""}`}><span className="relative"><Icon className="size-[19px]" />{to === "/today" && dueCount > 0 && <span className="mobile-count">{dueCount}</span>}</span><span>{label === "متابعات اليوم" ? "المتابعات" : label === "لوحة المتابعة" ? "الرئيسية" : label}</span></Link>; })}<Button variant="ghost" className={`mobile-tab ${location.pathname === "/settings" ? "mobile-tab-active" : ""}`} onClick={() => navigate({ to: "/settings" })} aria-label="الإعدادات"><Settings className="size-[19px]" /><span>الإعدادات</span></Button></nav>
+      <nav className="mobile-tabbar hidden max-md:grid" aria-label="التنقل الرئيسي">{navigation.filter((item) => item.to !== "/settings").map(({ to, label, icon: Icon }) => { const active = to === "/" ? location.pathname === "/" : location.pathname.startsWith(to); return <Link key={to} to={to} className={`mobile-tab ${active ? "mobile-tab-active" : ""}`}><span className="relative"><Icon className="size-[19px]" />{to === "/today" && dueCount > 0 && <span className="mobile-count">{dueCount}</span>}</span><span>{label === "متابعات اليوم" ? "المتابعات" : label === "لوحة المتابعة" ? "الرئيسية" : label}</span></Link>; })}<Button variant="ghost" className={`mobile-tab ${location.pathname === "/settings" ? "mobile-tab-active" : ""}`} onClick={() => navigate({ to: "/settings" })} aria-label="الإعدادات"><Settings className="size-[19px]" /><span>الإعدادات</span></Button></nav>
     </main>
   </div>;
 }

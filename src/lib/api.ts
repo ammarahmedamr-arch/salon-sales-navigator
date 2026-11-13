@@ -19,6 +19,7 @@ import type {
  */
 function mapClientRecord(rec: any, attemptsCount = 0): Client {
   const followUpState = computeFollowUpState(rec["next_follow_up_date"] || null, rec["outcome"]);
+  const ownerName = rec["expand"]?.["owner"]?.["name"] || "";
   return {
     id: rec["id"],
     code: rec["code"] || "",
@@ -36,6 +37,7 @@ function mapClientRecord(rec: any, attemptsCount = 0): Client {
     next_follow_up_date: rec["next_follow_up_date"] || null,
     notes: rec["notes"] || "",
     owner: rec["owner"] || "",
+    owner_name: ownerName,
     chat_url: rec["chat_url"] || "",
     created_at: rec["created"],
     updated: rec["updated"],
@@ -128,8 +130,12 @@ export const api = {
       }
 
       if (rawFilters.owner && rawFilters.owner !== "الكل") {
-        filterParams["owner"] = rawFilters.owner;
-        filterParts.push("owner = {:owner}");
+        if (rawFilters.owner === "none") {
+          filterParts.push("(owner = '' || owner = null)");
+        } else {
+          filterParams["owner"] = rawFilters.owner;
+          filterParts.push("owner = {:owner}");
+        }
       }
 
       if (rawFilters.source && rawFilters.source !== "الكل") {
@@ -164,7 +170,7 @@ export const api = {
         sort = `${dir}${key}`;
       }
 
-      const options: Record<string, any> = { sort };
+      const options: Record<string, any> = { sort, expand: "owner" };
       if (filterParts.length > 0) {
         options["filter"] = pb.filter(filterParts.join(" && "), filterParams);
       }
@@ -181,7 +187,7 @@ export const api = {
     },
 
     async get(id: string): Promise<Client> {
-      const record = await pb.collection("clients").getOne(id);
+      const record = await pb.collection("clients").getOne(id, { expand: "owner" });
       let attemptsCount = 0;
       try {
         const countRes = await pb.collection("contact_logs").getList(1, 1, {

@@ -3,18 +3,26 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import {
   AlertCircle,
   Building2,
+  Check,
   CheckCircle2,
   Clock,
+  Copy,
   ExternalLink,
   FileSpreadsheet,
+  KeyRound,
+  Mail,
   MessageSquare,
   Phone,
   PhoneCall,
   Plus,
   Send,
+  Shield,
   Sparkles,
+  UserCheck,
+  UserPlus,
   Users,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -37,6 +45,14 @@ export function DashboardPage() {
   const [clientFormOpen, setClientFormOpen] = useState(false);
   const [importExcelOpen, setImportExcelOpen] = useState(false);
   const [selectedClientForLog, setSelectedClientForLog] = useState<Client | null>(null);
+  const [copiedText, setCopiedText] = useState<string | null>(null);
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedText(text);
+    toast.success(`تم نسخ ${label}`);
+    setTimeout(() => setCopiedText(null), 2000);
+  };
 
   const openLogForClient = (client: Client) => {
     setSelectedClientForLog(client);
@@ -71,7 +87,10 @@ export function DashboardPage() {
 
   const clients = allClientsData?.items ?? [];
 
-  // Calculate team assignments
+  // Calculate team assignments & unassigned
+  const unassignedClients = clients.filter((c) => !c.owner || c.owner.trim() === "");
+  const unassignedCount = unassignedClients.length;
+
   const teamStats = teamUsers.map((user) => {
     const userClients = clients.filter(
       (c) => c.owner === user.id || c.owner === user.name
@@ -83,15 +102,14 @@ export function DashboardPage() {
       total: userClients.length,
       contacted,
       subscribed,
+      password: user.role === "admin" ? "AdminSecret123!" : "AgentSecret123!",
     };
   });
 
-  // Calculate primary simple metrics
   const totalSalons = stats.total;
   const contactedCount = stats.contacted;
   const activeOpportunities = stats.interested + stats.demos;
   const subscribedCount = stats.subscribed;
-  const uncontactedCount = Math.max(0, totalSalons - contactedCount);
 
   return (
     <div className="space-y-6">
@@ -156,7 +174,41 @@ export function DashboardPage() {
           </div>
           <div className="mt-2 text-3xl font-extrabold tracking-tight">{totalSalons}</div>
           <p className="mt-1 text-[11px] text-muted-foreground">
-            {uncontactedCount > 0 ? `${uncontactedCount} لم يتم التواصل معهم بعد` : "تم بدء التواصل مع الجميع"}
+            جميع الصالونات في مسار المبيعات
+          </p>
+        </Link>
+
+        {/* Unassigned Salons (Available to claim) */}
+        <Link
+          to="/clients"
+          search={{ owner: "none" }}
+          className={`group relative overflow-hidden rounded-2xl border p-4 transition-all hover:shadow-md ${
+            unassignedCount > 0
+              ? "border-amber-500/40 bg-amber-500/5 hover:border-amber-500/70"
+              : "border-border bg-card hover:border-primary/40"
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">صالونات غير مخصصة</span>
+            <span
+              className={`grid size-8 place-items-center rounded-xl ${
+                unassignedCount > 0
+                  ? "bg-amber-500/20 text-amber-700 dark:text-amber-400 font-bold"
+                  : "bg-muted text-muted-foreground"
+              }`}
+            >
+              <UserPlus className="size-4" />
+            </span>
+          </div>
+          <div
+            className={`mt-2 text-3xl font-extrabold tracking-tight ${
+              unassignedCount > 0 ? "text-amber-600 dark:text-amber-400" : ""
+            }`}
+          >
+            {unassignedCount}
+          </div>
+          <p className="mt-1 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+            {unassignedCount > 0 ? "متاحة للاستلام من المناديب الآن 👈" : "تم استلام جميع الصالونات"}
           </p>
         </Link>
 
@@ -177,26 +229,6 @@ export function DashboardPage() {
           </div>
           <p className="mt-1 text-[11px] text-muted-foreground">
             {totalSalons > 0 ? `${Math.round((contactedCount / totalSalons) * 100)}% معدل التغطية` : "0%"}
-          </p>
-        </Link>
-
-        {/* Active Opportunities */}
-        <Link
-          to="/clients"
-          search={{ outcome: "مهتم" }}
-          className="group relative overflow-hidden rounded-2xl border border-border bg-card p-4 transition-all hover:border-primary/40 hover:shadow-md"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground">مهتمون وعروض نشطة</span>
-            <span className="grid size-8 place-items-center rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400">
-              <Sparkles className="size-4" />
-            </span>
-          </div>
-          <div className="mt-2 text-3xl font-extrabold tracking-tight text-purple-600 dark:text-purple-400">
-            {activeOpportunities}
-          </div>
-          <p className="mt-1 text-[11px] text-muted-foreground">
-            {stats.interested} مهتم + {stats.demos} طلبوا ديمو/عرض
           </p>
         </Link>
 
@@ -245,78 +277,119 @@ export function DashboardPage() {
         </div>
 
         <Link to="/clients" className="flex items-center gap-1 font-semibold text-primary hover:underline">
-          <span>عرض جميع الصالونات ({totalSalons})</span>
+          <span>عرض جدول الصالونات ({totalSalons})</span>
           <ChevronLeftIcon className="size-3.5" />
         </Link>
       </div>
 
-      {/* 3. Team Salon Distribution Section */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Users className="size-5 text-primary" />
-            <h2 className="text-lg font-bold">توزيع الصالونات على فريق المبيعات</h2>
+      {/* 3. Team Members Login Credentials & Salon Distribution Table */}
+      <div className="space-y-3 rounded-3xl border border-border bg-card p-6 shadow-xs">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <KeyRound className="size-5 text-primary" />
+              <h2 className="text-lg font-bold">بيانات دخول وحسابات فريق المبيعات</h2>
+            </div>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              يمكن لأي موظف تسجيل الدخول بحسابه ومتابعة الصالونات المسندة إليه
+            </p>
           </div>
-          <span className="text-xs text-muted-foreground">
-            توزيع ومتابعة أداء كل مندوب في تغطية الصالونات
-          </span>
+          <Badge variant="outline" className="w-fit text-xs">
+            {teamUsers.length} أعضاء في الفريق
+          </Badge>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {teamStats.map(({ user, total, contacted, subscribed }) => {
-            const coveragePercent = total > 0 ? Math.round((contacted / total) * 100) : 0;
-            return (
-              <div
-                key={user.id}
-                className="rounded-2xl border border-border bg-card p-4 shadow-2xs transition-all hover:border-primary/30"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-bold text-foreground">{user.name}</h3>
-                    <p className="text-xs text-muted-foreground">{user.email}</p>
-                  </div>
-                  <Badge variant={user.role === "admin" ? "default" : "secondary"} className="text-[10px]">
-                    {user.role === "admin" ? "مدير النظام" : "مسؤول مبيعات"}
-                  </Badge>
-                </div>
+        <div className="overflow-hidden rounded-2xl border border-border bg-background">
+          <table className="w-full text-end text-xs">
+            <thead className="bg-muted/60 text-muted-foreground">
+              <tr>
+                <th className="p-3 text-start">الموظف</th>
+                <th className="p-3 text-start">البريد الإلكتروني (اسم المستخدم)</th>
+                <th className="p-3 text-start">كلمة المرور</th>
+                <th className="p-3 text-start">الدور</th>
+                <th className="p-3 text-center">الصالونات المستلمة</th>
+                <th className="p-3 text-center">تم التواصل</th>
+                <th className="p-3 text-center">المشتركون</th>
+                <th className="p-3 text-end">الإجراء</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {teamStats.map(({ user, total, contacted, subscribed, password }) => (
+                <tr key={user.id} className="transition-colors hover:bg-muted/20">
+                  <td className="p-3 font-bold text-foreground">
+                    <div className="flex items-center gap-2">
+                      <div className="grid size-7 place-items-center rounded-lg bg-primary/10 text-xs font-bold text-primary">
+                        {user.name.slice(0, 1)}
+                      </div>
+                      <span>{user.name}</span>
+                    </div>
+                  </td>
 
-                <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-                  <div className="rounded-xl bg-muted/40 p-2">
-                    <span className="text-[10px] text-muted-foreground">الصالونات</span>
-                    <p className="text-base font-bold">{total}</p>
-                  </div>
-                  <div className="rounded-xl bg-blue-500/10 p-2">
-                    <span className="text-[10px] text-blue-600">تواصل معهم</span>
-                    <p className="text-base font-bold text-blue-600">{contacted}</p>
-                  </div>
-                  <div className="rounded-xl bg-emerald-500/10 p-2">
-                    <span className="text-[10px] text-emerald-600">المشتركين</span>
-                    <p className="text-base font-bold text-emerald-600">{subscribed}</p>
-                  </div>
-                </div>
+                  <td className="p-3 text-start">
+                    <div className="flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground">
+                      <span>{user.email}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-6 text-muted-foreground hover:text-foreground"
+                        onClick={() => copyToClipboard(user.email, "البريد الإلكتروني")}
+                        title="نسخ البريد"
+                      >
+                        {copiedText === user.email ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
+                      </Button>
+                    </div>
+                  </td>
 
-                <div className="mt-3 space-y-1">
-                  <div className="flex justify-between text-[11px] text-muted-foreground">
-                    <span>نسبة الإنجاز:</span>
-                    <span className="font-bold">{coveragePercent}%</span>
-                  </div>
-                  <Progress value={coveragePercent} className="h-1.5" />
-                </div>
+                  <td className="p-3 text-start">
+                    <div className="flex items-center gap-1.5 font-mono text-[11px] font-semibold text-foreground">
+                      <span className="rounded-md bg-muted px-2 py-0.5">{password}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-6 text-muted-foreground hover:text-foreground"
+                        onClick={() => copyToClipboard(password, "كلمة المرور")}
+                        title="نسخ كلمة المرور"
+                      >
+                        {copiedText === password ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
+                      </Button>
+                    </div>
+                  </td>
 
-                <div className="mt-3 pt-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => navigate({ to: "/clients", search: { q: user.name } })}
-                    className="h-8 w-full gap-1.5 rounded-lg text-xs text-primary hover:bg-primary/5"
-                  >
-                    <span>عرض صالونات {user.name}</span>
-                    <ExternalLink className="size-3" />
-                  </Button>
-                </div>
-              </div>
-            );
-          })}
+                  <td className="p-3 text-start">
+                    <Badge variant={user.role === "admin" ? "default" : "secondary"} className="text-[10px]">
+                      {user.role === "admin" ? "مدير النظام" : "مندوب مبيعات"}
+                    </Badge>
+                  </td>
+
+                  <td className="p-3 text-center font-bold text-base">
+                    {total}
+                  </td>
+
+                  <td className="p-3 text-center font-semibold text-blue-600">
+                    {contacted}
+                  </td>
+
+                  <td className="p-3 text-center font-bold text-emerald-600">
+                    {subscribed}
+                  </td>
+
+                  <td className="p-3 text-end">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigate({ to: "/clients", search: { owner: user.id } })}
+                      className="h-7 gap-1 rounded-lg text-xs"
+                    >
+                      <span>صالوناته ({total})</span>
+                      <ExternalLink className="size-3" />
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -434,49 +507,6 @@ export function DashboardPage() {
             </p>
           </div>
         )}
-      </div>
-
-      {/* 5. Sales Funnel Visual Progress */}
-      <div className="rounded-3xl border border-border bg-card p-6 shadow-xs">
-        <h3 className="text-base font-bold">مسار تحويل المبيعات (Sales Funnel)</h3>
-        <p className="text-xs text-muted-foreground">
-          رحلة الصالون من الاستيراد وحتى الاشتراك الفعلي
-        </p>
-
-        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div className="rounded-xl border border-border bg-muted/20 p-3">
-            <span className="text-xs text-muted-foreground">1. إجمالي الصالونات</span>
-            <p className="text-lg font-bold">{totalSalons}</p>
-            <Progress value={100} className="mt-2 h-1.5" />
-          </div>
-
-          <div className="rounded-xl border border-border bg-muted/20 p-3">
-            <span className="text-xs text-muted-foreground">2. تم التواصل معهم</span>
-            <p className="text-lg font-bold text-blue-600">{contactedCount}</p>
-            <Progress
-              value={totalSalons > 0 ? (contactedCount / totalSalons) * 100 : 0}
-              className="mt-2 h-1.5"
-            />
-          </div>
-
-          <div className="rounded-xl border border-border bg-muted/20 p-3">
-            <span className="text-xs text-muted-foreground">3. مهتمون / عروض</span>
-            <p className="text-lg font-bold text-purple-600">{activeOpportunities}</p>
-            <Progress
-              value={totalSalons > 0 ? (activeOpportunities / totalSalons) * 100 : 0}
-              className="mt-2 h-1.5"
-            />
-          </div>
-
-          <div className="rounded-xl border border-border bg-muted/20 p-3">
-            <span className="text-xs text-muted-foreground">4. مشتركون بنجاح</span>
-            <p className="text-lg font-bold text-emerald-600">{subscribedCount}</p>
-            <Progress
-              value={totalSalons > 0 ? (subscribedCount / totalSalons) * 100 : 0}
-              className="mt-2 h-1.5"
-            />
-          </div>
-        </div>
       </div>
 
       {/* Dialogs */}

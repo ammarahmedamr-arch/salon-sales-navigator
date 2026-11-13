@@ -1,5 +1,7 @@
+import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import pb from "@/lib/pb";
 import type {
   ClientInput,
   ClientListParams,
@@ -77,11 +79,51 @@ export function useTeamUsers() {
 
 export const useUsers = useTeamUsers;
 
-function invalidateCrm(queryClient: ReturnType<typeof useQueryClient>) {
-  void queryClient.invalidateQueries({ queryKey: crmKeys.clients });
-  void queryClient.invalidateQueries({ queryKey: crmKeys.logs });
-  void queryClient.invalidateQueries({ queryKey: crmKeys.recentLogs });
-  void queryClient.invalidateQueries({ queryKey: crmKeys.stats });
+export function invalidateCrm(queryClient: ReturnType<typeof useQueryClient>) {
+  void queryClient.invalidateQueries({ refetchType: "all" });
+}
+
+export function useCrmRealtime() {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    let unsubClients: (() => void) | undefined;
+    let unsubLogs: (() => void) | undefined;
+    let unsubUsers: (() => void) | undefined;
+
+    pb.collection("clients")
+      .subscribe("*", () => {
+        invalidateCrm(queryClient);
+      })
+      .then((unsub) => {
+        unsubClients = unsub;
+      })
+      .catch((err) => console.warn("Realtime clients sub error:", err));
+
+    pb.collection("contact_logs")
+      .subscribe("*", () => {
+        invalidateCrm(queryClient);
+      })
+      .then((unsub) => {
+        unsubLogs = unsub;
+      })
+      .catch((err) => console.warn("Realtime logs sub error:", err));
+
+    pb.collection("users")
+      .subscribe("*", () => {
+        invalidateCrm(queryClient);
+      })
+      .then((unsub) => {
+        unsubUsers = unsub;
+      })
+      .catch((err) => console.warn("Realtime users sub error:", err));
+
+    return () => {
+      unsubClients?.();
+      unsubLogs?.();
+      unsubUsers?.();
+    };
+  }, [queryClient]);
 }
 
 export function useSaveClient() {

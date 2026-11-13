@@ -159,7 +159,10 @@
 .team-dot { display: grid; width: 24px; height: 24px; place-items: center; border: 2px solid var(--color-sidebar); border-radius: 50%; background: var(--color-primary); color: var(--color-primary-foreground); font-size: 10px; }
 .team-dot-1 { background: var(--color-success); color: white; }
 .team-dot-2 { background: var(--color-warning); color: white; }
-.mobile-tabbar { position: fixed; z-index: 40; inset-inline: 0; inset-block-end: 0; display: grid; min-height: 64px; grid-template-columns: repeat(5, minmax(0,1fr)); border-block-start: 1px solid var(--color-border); background: var(--color-card); padding-block: 5px env(safe-area-inset-bottom); }
+.mobile-tabbar { display: none !important; }
+@media (max-width: 767px) {
+  .mobile-tabbar { position: fixed; z-index: 40; inset-inline: 0; inset-block-end: 0; display: grid !important; min-height: 64px; grid-template-columns: repeat(5, minmax(0,1fr)); border-block-start: 1px solid var(--color-border); background: var(--color-card); padding-block: 5px env(safe-area-inset-bottom); }
+}
 .mobile-tab { display: flex; min-width: 0; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--color-muted-foreground); font-size: 10px; }
 .mobile-tab-active { color: var(--color-primary); font-weight: 650; }
 .mobile-count { position: absolute; inset-inline-end: -9px; inset-block-start: -5px; min-width: 15px; height: 15px; border-radius: 99px; background: var(--color-danger); color: white; text-align: center; font-size: 9px; line-height: 15px; }

@@ -12,6 +12,8 @@ import {
   Plus,
   Trash2,
   User,
+  UserCheck,
+  UserPlus,
 } from "lucide-react";
 import {
   Sheet,
@@ -23,7 +25,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { useClientLogs, useDeleteClient } from "@/hooks/use-crm";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useClientLogs, useDeleteClient, useSaveClient, useTeamUsers } from "@/hooks/use-crm";
 import { buildWhatsAppUrl, formatArabicDate } from "@/lib/utils";
 import type { Client } from "@/lib/types";
 
@@ -45,11 +54,33 @@ export function ClientSheet({
   isAdmin = false,
 }: ClientSheetProps) {
   const deleteClient = useDeleteClient();
+  const saveClient = useSaveClient();
+  const { data: teamUsers = [] } = useTeamUsers();
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const { data: logs, isLoading: logsLoading } = useClientLogs(client?.id ?? "");
 
   if (!client) return null;
+
+  const handleReassign = async (newOwnerId: string) => {
+    try {
+      await saveClient.mutateAsync({
+        id: client.id,
+        input: {
+          ...client,
+          owner: newOwnerId === "none" ? "" : newOwnerId,
+        },
+      });
+      const targetUser = teamUsers.find((u) => u.id === newOwnerId);
+      toast.success(
+        newOwnerId === "none"
+          ? "تم إلغاء التعيين وأصبح الصالون متاحاً"
+          : `تم إسناد الصالون إلى ${targetUser?.name || "الموظف"} بنجاح`
+      );
+    } catch (err: any) {
+      toast.error(err?.message || "تعذر تحديث المسؤول");
+    }
+  };
 
   const waUrl = buildWhatsAppUrl(
     client.phone,
@@ -166,6 +197,31 @@ export function ClientSheet({
 
           {/* Details list */}
           <div className="space-y-3 rounded-2xl border border-border/80 bg-card p-4 text-xs">
+            {/* Responsible sales agent */}
+            <div className="flex items-center justify-between border-t border-border/60 pt-2.5">
+              <span className="font-semibold text-foreground">المسؤول عن المتابعة:</span>
+              <Select
+                value={client.owner || "none"}
+                onValueChange={(val) => handleReassign(val)}
+              >
+                <SelectTrigger className="h-8 w-44 rounded-xl text-xs font-bold">
+                  <SelectValue>
+                    {client.owner_name ||
+                      teamUsers.find((u) => u.id === client.owner)?.name ||
+                      "غير مخصص (متاح)"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent dir="rtl">
+                  <SelectItem value="none">غير مخصص (متاح للاستلام)</SelectItem>
+                  {teamUsers.map((u) => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.name} ({u.role === "admin" ? "مدير" : "مندوب"})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">رقم الجوال:</span>
               <span className="font-mono font-medium text-foreground" dir="ltr">

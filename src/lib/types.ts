@@ -67,6 +67,7 @@ export interface Client extends ClientInput {
   updated?: string | undefined;
   follow_up_state: FollowUpState;
   attempts_count: number;
+  owner_name?: string | undefined;
 }
 
 export interface ContactLogInput {

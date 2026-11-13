@@ -59,9 +59,9 @@ export function ImportExcelDialog({ open, onOpenChange }: ImportExcelDialogProps
 
   const [file, setFile] = useState<File | null>(null);
   const [parsedRows, setParsedRows] = useState<ParsedSalonRow[]>([]);
-  const [distributionMode, setDistributionMode] = useState<"round-robin" | "single" | "excel">(
-    "round-robin"
-  );
+  const [distributionMode, setDistributionMode] = useState<
+    "unassigned" | "round-robin" | "single" | "excel"
+  >("unassigned");
   const [selectedAgentId, setSelectedAgentId] = useState<string>("");
   const [isImporting, setIsImporting] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -230,7 +230,9 @@ export function ImportExcelDialog({ open, onOpenChange }: ImportExcelDialogProps
 
       // Determine owner
       let ownerId = "";
-      if (distributionMode === "round-robin" && eligibleTeam.length > 0) {
+      if (distributionMode === "unassigned") {
+        ownerId = "";
+      } else if (distributionMode === "round-robin" && eligibleTeam.length > 0) {
         const assignedUser = eligibleTeam[i % eligibleTeam.length];
         ownerId = assignedUser?.id ?? "";
       } else if (distributionMode === "single" && selectedAgentId) {
@@ -241,9 +243,7 @@ export function ImportExcelDialog({ open, onOpenChange }: ImportExcelDialogProps
             u.name.trim().toLowerCase() === row.excelOwnerName?.trim().toLowerCase() ||
             u.email.toLowerCase().includes(row.excelOwnerName?.trim().toLowerCase() || "")
         );
-        ownerId = matched ? matched.id : selectedAgentId || teamUsers[0]?.id || "";
-      } else {
-        ownerId = selectedAgentId || teamUsers[0]?.id || "";
+        ownerId = matched ? matched.id : "";
       }
 
       // Format mobile
@@ -377,7 +377,22 @@ export function ImportExcelDialog({ open, onOpenChange }: ImportExcelDialogProps
                 <h4 className="text-sm font-bold">توزيع الصالونات على فريق المبيعات:</h4>
               </div>
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+                <button
+                  type="button"
+                  onClick={() => setDistributionMode("unassigned")}
+                  className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-start transition-all ${
+                    distributionMode === "unassigned"
+                      ? "border-primary bg-primary/5 font-semibold text-primary"
+                      : "border-border hover:bg-muted/50"
+                  }`}
+                >
+                  <span className="text-xs font-bold">بدون تعيين (غير مخصص)</span>
+                  <span className="text-[11px] text-muted-foreground">
+                    تُترك مفتوحة ليختار كل موظف صالوناته لاحقاً
+                  </span>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => setDistributionMode("round-robin")}
@@ -389,7 +404,7 @@ export function ImportExcelDialog({ open, onOpenChange }: ImportExcelDialogProps
                 >
                   <span className="text-xs font-bold">توزيع بالتساوي (تلقائي)</span>
                   <span className="text-[11px] text-muted-foreground">
-                    تقسيم الصالونات بالتساوي على مناديب المبيعات
+                    تقسيم الصالونات أوتوماتيكياً على المناديب
                   </span>
                 </button>
 

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { toast } from "sonner";
 import {
   Building2,
   ChevronLeft,
@@ -13,6 +14,8 @@ import {
   Plus,
   RotateCcw,
   Search,
+  UserCheck,
+  UserPlus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,7 +36,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useClients } from "@/hooks/use-crm";
+import { useClients, useSaveClient, useTeamUsers } from "@/hooks/use-crm";
 import { LogContactDialog } from "@/components/clients/log-contact-dialog";
 import { ClientFormDialog } from "@/components/clients/client-form-dialog";
 import { ImportExcelDialog } from "@/components/clients/import-excel-dialog";
@@ -55,6 +58,7 @@ interface ClientsSearchParams {
   priority?: string | undefined;
   status?: string | undefined;
   outcome?: string | undefined;
+  owner?: string | undefined;
   page?: number | undefined;
 }
 
@@ -67,6 +71,7 @@ export const Route = createFileRoute("/_authenticated/clients")({
       priority: (search["priority"] as string) || undefined,
       status: (search["status"] as string) || undefined,
       outcome: (search["outcome"] as string) || undefined,
+      owner: (search["owner"] as string) || undefined,
       page: Number(search["page"]) > 0 ? Number(search["page"]) : 1,
     };
   },
@@ -78,6 +83,10 @@ function ClientsPage() {
   const searchParams = Route.useSearch();
   const authContext = Route.useRouteContext() as any;
   const isAdmin = authContext?.user?.role === "admin";
+  const currentUser = authContext?.user;
+
+  const { data: teamUsers = [] } = useTeamUsers();
+  const saveClient = useSaveClient();
 
   const q = searchParams.q ?? "";
   const city = searchParams.city ?? "الكل";
@@ -85,6 +94,7 @@ function ClientsPage() {
   const priority = searchParams.priority ?? "الكل";
   const status = searchParams.status ?? "الكل";
   const outcome = searchParams.outcome ?? "الكل";
+  const owner = searchParams.owner ?? "الكل";
   const page = searchParams.page ?? 1;
 
   // Dialog & Sheet States
@@ -103,11 +113,32 @@ function ClientsPage() {
     priority: priority === "الكل" ? undefined : priority,
     contact_status: status === "الكل" ? undefined : status,
     outcome: outcome === "الكل" ? undefined : outcome,
+    owner: owner === "الكل" ? undefined : owner,
   });
 
   const clients = data?.items ?? [];
   const totalPages = data?.totalPages ?? 1;
   const totalItems = data?.totalItems ?? 0;
+
+  const handleQuickAssign = async (clientId: string, client: Client, newOwnerId: string) => {
+    try {
+      await saveClient.mutateAsync({
+        id: clientId,
+        input: {
+          ...client,
+          owner: newOwnerId === "none" ? "" : newOwnerId,
+        },
+      });
+      const targetUser = teamUsers.find((u) => u.id === newOwnerId);
+      toast.success(
+        newOwnerId === "none"
+          ? "تم إلغاء التعيين وأصبح الصالون متاحاً"
+          : `تم إسناد الصالون إلى ${targetUser?.name || "الموظف"} بنجاح`
+      );
+    } catch (err: any) {
+      toast.error(err?.message || "تعذر تعيين المسؤول");
+    }
+  };
 
   const updateSearch = (newParams: Partial<ClientsSearchParams>) => {
     navigate({
@@ -272,6 +303,22 @@ function ClientsPage() {
             </SelectContent>
           </Select>
 
+          {/* Owner Filter */}
+          <Select value={owner} onValueChange={(val) => updateSearch({ owner: val })}>
+            <SelectTrigger className="h-9 rounded-xl text-xs text-start">
+              <SelectValue placeholder="المسؤول" />
+            </SelectTrigger>
+            <SelectContent dir="rtl">
+              <SelectItem value="الكل">كل المسؤولين</SelectItem>
+              <SelectItem value="none">صالونات غير مخصصة (متاحة)</SelectItem>
+              {teamUsers.map((u) => (
+                <SelectItem key={u.id} value={u.id}>
+                  {u.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           {/* Reset Filters */}
           <Button
             variant="ghost"
@@ -295,6 +342,7 @@ function ClientsPage() {
               <TableHead className="text-start">رقم التواصل</TableHead>
               <TableHead className="text-start">حالة التواصل</TableHead>
               <TableHead className="text-start">النتيجة</TableHead>
+              <TableHead className="text-start">المسؤول عن المتابعة</TableHead>
               <TableHead className="text-start">الأولوية</TableHead>
               <TableHead className="text-start">المتابعة القادمة</TableHead>
               <TableHead className="text-end">الإجراءات</TableHead>
@@ -304,14 +352,14 @@ function ClientsPage() {
             {isLoading ? (
               Array.from({ length: 6 }).map((_, i) => (
                 <TableRow key={i}>
-                  <TableCell colSpan={8}>
+                  <TableCell colSpan={9}>
                     <Skeleton className="h-8 w-full rounded-md" />
                   </TableCell>
                 </TableRow>
               ))
             ) : clients.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="py-12 text-center">
+                <TableCell colSpan={9} className="py-12 text-center">
                   <div className="flex flex-col items-center justify-center">
                     <Building2 className="size-8 text-muted-foreground" />
                     <p className="mt-2 text-sm font-semibold text-foreground">
@@ -362,6 +410,60 @@ function ClientsPage() {
                       <span className="rounded-md bg-primary/10 px-2 py-1 text-xs font-semibold text-primary">
                         {client.outcome}
                       </span>
+                    </TableCell>
+
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      {!client.owner || client.owner === "none" ? (
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 gap-1 rounded-lg border-emerald-500/40 bg-emerald-500/10 px-2 text-[11px] font-semibold text-emerald-600 hover:bg-emerald-500/20"
+                            onClick={() => handleQuickAssign(client.id, client, currentUser?.id || "")}
+                            title="استلام هذا الصالون لي"
+                          >
+                            <UserPlus className="size-3" />
+                            استلام لي
+                          </Button>
+                          <Select
+                            value="none"
+                            onValueChange={(val) => handleQuickAssign(client.id, client, val)}
+                          >
+                            <SelectTrigger className="h-7 w-20 rounded-lg text-[10px] text-muted-foreground">
+                              <span>تعيين</span>
+                            </SelectTrigger>
+                            <SelectContent dir="rtl">
+                              <SelectItem value="none">غير مخصص</SelectItem>
+                              {teamUsers.map((u) => (
+                                <SelectItem key={u.id} value={u.id}>
+                                  {u.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ) : (
+                        <Select
+                          value={client.owner || "none"}
+                          onValueChange={(val) => handleQuickAssign(client.id, client, val)}
+                        >
+                          <SelectTrigger className="h-7 w-32 rounded-lg text-xs font-semibold">
+                            <SelectValue>
+                              {client.owner_name ||
+                                teamUsers.find((u) => u.id === client.owner)?.name ||
+                                "غير مخصص"}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent dir="rtl">
+                            <SelectItem value="none">إلغاء التعيين</SelectItem>
+                            {teamUsers.map((u) => (
+                              <SelectItem key={u.id} value={u.id}>
+                                {u.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                     </TableCell>
 
                     <TableCell>
