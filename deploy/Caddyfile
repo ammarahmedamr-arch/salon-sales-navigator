@@ -1,0 +1,41 @@
+# Caddyfile for OJLinker CRM
+# Usage:
+#   Set DOMAIN environment variable (e.g. export DOMAIN=crm.ojlinker.sa)
+#   or replace {$DOMAIN:ojlinker.example.com} with your actual domain name.
+
+{$DOMAIN:ojlinker.example.com} {
+    encode zstd gzip
+
+    # Reverse proxy backend API and PocketBase admin UI
+    handle /api/* {
+        reverse_proxy 127.0.0.1:8090
+    }
+
+    handle /_* {
+        reverse_proxy 127.0.0.1:8090
+    }
+
+    # Serve static frontend SPA
+    handle {
+        root * /var/www/ojlinker-crm/dist
+        try_files {path} /index.html
+        file_server
+    }
+
+    # Security headers (compatible with Recharts inline styles & charts)
+    header {
+        X-Frame-Options "DENY"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        -Server
+    }
+
+    # Access logs
+    log {
+        output file /var/log/caddy/ojlinker-access.log {
+            roll_size 20mb
+            roll_keep 5
+        }
+    }
+}

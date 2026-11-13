@@ -1,0 +1,22 @@
+[Unit]
+Description=OJLinker CRM PocketBase Backend Service
+After=network.target
+
+[Service]
+Type=simple
+# Change User/Group to www-data or root if needed in your VPS setup
+User=ojlinker
+Group=ojlinker
+WorkingDirectory=/var/www/ojlinker-crm/backend
+ExecStart=/var/www/ojlinker-crm/backend/pocketbase serve --http=127.0.0.1:8090 --dir=/var/www/ojlinker-crm/backend/pb_data
+Restart=always
+RestartSec=5s
+
+# Security Hardening
+NoNewPrivileges=yes
+ProtectSystem=full
+PrivateTmp=yes
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target
