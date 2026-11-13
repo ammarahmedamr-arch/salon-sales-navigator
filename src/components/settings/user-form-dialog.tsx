@@ -26,6 +26,7 @@ interface UserFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   user?: AppUser | null;
+  currentUser?: AppUser | null;
   onSuccess?: () => void;
 }
 
@@ -33,6 +34,7 @@ export function UserFormDialog({
   open,
   onOpenChange,
   user,
+  currentUser,
   onSuccess,
 }: UserFormDialogProps) {
   const createUser = useCreateUser();
@@ -40,6 +42,8 @@ export function UserFormDialog({
   const deleteUser = useDeleteUser();
 
   const isEditing = Boolean(user);
+  const isSelf = currentUser && user && currentUser.id === user.id;
+  const isViewerAdmin = currentUser ? currentUser.role === "admin" : true;
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -222,23 +226,32 @@ export function UserFormDialog({
           </div>
 
           {/* Role */}
-          <div className="space-y-1.5">
-            <Label htmlFor="user-role" className="text-xs font-semibold">
-              الدور والصلاحية *
-            </Label>
-            <Select value={role} onValueChange={(val) => setRole(val as "admin" | "agent")}>
-              <SelectTrigger id="user-role" className="h-10 rounded-xl text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent dir="rtl">
-                <SelectItem value="agent">مسؤول مبيعات (متابعة الصالونات وتسجيل التواصل)</SelectItem>
-                <SelectItem value="admin">مدير نظام (تحكم كامل + حذف الصالونات والمستخدمين)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          {isViewerAdmin ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="user-role" className="text-xs font-semibold">
+                الدور والصلاحية *
+              </Label>
+              <Select value={role} onValueChange={(val) => setRole(val as "admin" | "agent")}>
+                <SelectTrigger id="user-role" className="h-10 rounded-xl text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent dir="rtl">
+                  <SelectItem value="agent">مسؤول مبيعات (متابعة الصالونات وتسجيل التواصل)</SelectItem>
+                  <SelectItem value="admin">مدير نظام (تحكم كامل + حذف الصالونات والمستخدمين)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">الدور والصلاحية</Label>
+              <div className="rounded-xl border bg-muted/40 p-2.5 text-xs text-muted-foreground">
+                مسؤول مبيعات (متابعة الصالونات وتسجيل التواصل)
+              </div>
+            </div>
+          )}
 
           <DialogFooter className="flex-row items-center justify-between gap-2 pt-2 sm:justify-between">
-            {isEditing && (
+            {isEditing && isViewerAdmin && !isSelf && (
               <Button
                 type="button"
                 variant={confirmDelete ? "destructive" : "ghost"}

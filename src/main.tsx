@@ -2,7 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ThemeProvider } from "@/components/layout/theme-provider";
+import { ThemeProvider, useTheme } from "@/components/layout/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { routeTree } from "./routeTree.gen";
 import "@/styles.css";
@@ -15,6 +15,11 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+function AppToaster() {
+  const { dark } = useTheme();
+  return <Toaster position="top-center" richColors dir="rtl" theme={dark ? "dark" : "light"} />;
+}
 
 const router = createRouter({
   routeTree,
@@ -38,9 +43,8 @@ ReactDOM.createRoot(rootElement).render(
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <RouterProvider router={router} />
-        <Toaster position="top-center" richColors dir="rtl" />
+        <AppToaster />
       </ThemeProvider>
     </QueryClientProvider>
   </React.StrictMode>,
 );
-

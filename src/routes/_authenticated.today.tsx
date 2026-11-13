@@ -36,7 +36,9 @@ function TodayFollowUpsPage() {
   const [showLater, setShowLater] = useState(false);
 
   const authContext = Route.useRouteContext() as any;
-  const isAdmin = authContext?.user?.role === "admin";
+  const currentUser = authContext?.user;
+  const isAdmin = currentUser?.role === "admin";
+  const [filterMineOnly, setFilterMineOnly] = useState(!isAdmin);
 
   const { data, isLoading } = useClients({ perPage: 500 });
   const allClients = data?.items ?? [];
@@ -44,11 +46,15 @@ function TodayFollowUpsPage() {
   const today = getRiyadhDateKey();
 
   // Filter clients requiring follow-up
-  const activeFollowUps = allClients.filter(
-    (c) =>
+  const activeFollowUps = allClients.filter((c) => {
+    if (filterMineOnly && currentUser) {
+      if (c.owner !== currentUser.id && c.owner !== currentUser.name) return false;
+    }
+    return (
       c.next_follow_up_date &&
       !["مشترك", "غير مهتم", "لا يرغب بالتواصل"].includes(c.outcome)
-  );
+    );
+  });
 
   const overdueClients = activeFollowUps
     .filter((c) => computeFollowUpState(c.next_follow_up_date, c.outcome) === "متأخرة")
@@ -137,7 +143,8 @@ function TodayFollowUpsPage() {
 
           <p className="text-xs text-muted-foreground">
             {client.code} · {client.city} · {client.business_type}
-            {client.contact_person ? ` · المسؤول: ${client.contact_person}` : ""}
+            {client.contact_person ? ` · الشخص: ${client.contact_person}` : ""}
+            {(!filterMineOnly || isAdmin) && client.owner_name ? ` · المتابع: ${client.owner_name}` : ""}
           </p>
 
           {client.notes && (
@@ -204,11 +211,32 @@ function TodayFollowUpsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">متابعات اليوم</h1>
-        <p className="text-xs text-muted-foreground sm:text-sm">
-          قائمة المهام والتواصل المجدول حسب توقيت الرياض ({today})
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">متابعات اليوم</h1>
+          <p className="text-xs text-muted-foreground sm:text-sm">
+            قائمة المهام والتواصل المجدول حسب توقيت الرياض ({today})
+          </p>
+        </div>
+
+        <div className="flex items-center gap-1 rounded-xl border border-border bg-card p-1 text-xs">
+          <Button
+            size="sm"
+            variant={filterMineOnly ? "default" : "ghost"}
+            onClick={() => setFilterMineOnly(true)}
+            className="h-8 rounded-lg text-xs"
+          >
+            صالوناتي فقط
+          </Button>
+          <Button
+            size="sm"
+            variant={!filterMineOnly ? "default" : "ghost"}
+            onClick={() => setFilterMineOnly(false)}
+            className="h-8 rounded-lg text-xs"
+          >
+            {isAdmin ? "جميع صالونات الفريق" : "الكل"}
+          </Button>
+        </div>
       </div>
 
       {/* Section 1: Overdue Follow-ups */}

@@ -189,14 +189,16 @@ function ClientsPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2.5">
-          <Button
-            onClick={() => setImportDialogOpen(true)}
-            variant="outline"
-            className="h-10 gap-2 rounded-xl border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10"
-          >
-            <FileSpreadsheet className="size-4" />
-            استيراد من Excel
-          </Button>
+          {isAdmin && (
+            <Button
+              onClick={() => setImportDialogOpen(true)}
+              variant="outline"
+              className="h-10 gap-2 rounded-xl border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10"
+            >
+              <FileSpreadsheet className="size-4" />
+              استيراد من Excel
+            </Button>
+          )}
           <Button
             onClick={() => {
               setSelectedClient(null);
@@ -212,6 +214,42 @@ function ClientsPage() {
 
       {/* Filter Bar */}
       <div className="space-y-3 rounded-2xl border border-border bg-card p-4">
+        {/* Quick Scope Filter Tabs */}
+        <div className="flex flex-wrap items-center gap-2 pb-1 border-b border-border/60">
+          <Button
+            size="sm"
+            variant={owner === "الكل" ? "default" : "outline"}
+            onClick={() => updateSearch({ owner: "الكل", page: 1 })}
+            className="h-8 rounded-xl text-xs"
+          >
+            {isAdmin ? "جميع الصالونات بالنظام" : "الكل"}
+          </Button>
+
+          {currentUser && (
+            <Button
+              size="sm"
+              variant={owner === currentUser.id ? "default" : "outline"}
+              onClick={() => updateSearch({ owner: currentUser.id, page: 1 })}
+              className="h-8 rounded-xl text-xs font-semibold"
+            >
+              صالوناتي المسندة إليّ
+            </Button>
+          )}
+
+          <Button
+            size="sm"
+            variant={owner === "none" ? "default" : "outline"}
+            onClick={() => updateSearch({ owner: "none", page: 1 })}
+            className={`h-8 rounded-xl text-xs ${
+              owner === "none"
+                ? "bg-amber-600 text-white hover:bg-amber-700"
+                : "border-amber-500/40 text-amber-700 hover:bg-amber-500/10 dark:text-amber-400"
+            }`}
+          >
+            صالونات غير مخصصة (متاحة للاستلام)
+          </Button>
+        </div>
+
         {/* Search input */}
         <div className="relative">
           <Search className="pointer-events-none absolute end-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
