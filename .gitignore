@@ -19,6 +19,10 @@ dist-ssr
 backend/pocketbase
 backend/pb_data/
 
+# Test artifacts
+test-results/
+playwright-report/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

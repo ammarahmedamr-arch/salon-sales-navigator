@@ -255,3 +255,22 @@ api.users.list(): Promise<AppUser[]>
 6. **Add log dialog** (reusable, used by Clients + Today).
 7. **Fix timezone safety** in `dateKey` for `Asia/Riyadh`.
 8. **Write Vitest tests** for timezone edge cases.
+
+---
+
+## (g) Post-Audit Implementation & Resolution Status (Phases A, B, C)
+
+| Audit Item | Original Status | Final Status | Resolution Details |
+|---|---|---|---|
+| **Vite SPA Migration** | 🔴 Build-breaking | ✅ RESOLVED | Replaced Lovable config with `@vitejs/plugin-react`, `@tailwindcss/vite`, `@tanstack/router-plugin/vite`. Removed `server.ts`, `start.ts`, Lovable telemetry, bun files. `index.html` configured with `lang="ar" dir="rtl"` and IBM Plex Sans Arabic. |
+| **Missing Routes & Pages** | 🔴 Build-breaking | ✅ RESOLVED | Created `/` (Dashboard), `/clients`, `/today`, `/log`, `/settings`, `/login`. All routes type-safe in TanStack Router. |
+| **`DashboardPage` Component** | 🔴 Missing | ✅ RESOLVED | Created `src/components/dashboard/dashboard-page.tsx` with 8 KPI cards, sales funnel, city distribution chart, recent 8 activities, top 5 follow-ups, and genuine Arabic empty state. |
+| **`cn` Utility** | 🔴 Missing export | ✅ RESOLVED | Added `cn` (`clsx` + `tailwind-merge`) to `src/lib/utils.ts`. |
+| **Arabic / RTL & Error Strings** | 🟠 English leftovers | ✅ RESOLVED | Root HTML sets `lang="ar"` & `dir="rtl"`. 404 and Error boundary completely translated to Arabic. Internal tool meta robots set to `noindex, nofollow`. Favicon replaced with navy `#17365D` and gold `#C9A227` OJ emblem. |
+| **Timezone Safety (Asia/Riyadh)** | 🟠 Local time bug | ✅ RESOLVED | `getTodayRiyadh()` uses `Intl.DateTimeFormat` with `timeZone: "Asia/Riyadh"`. Verified with Vitest tests across midnight boundaries (20:59 vs 21:01 UTC). |
+| **Types & Contracts** | 🟡 Missing fields | ✅ RESOLVED | Added `role: "admin" | "agent"` to `AppUser`, `created_by` to `ContactLog`, `updated` to `Client`. Standardized `api.*.list` pagination to `{ items, totalItems, page, perPage, totalPages }`. |
+| **`deriveClientUpdate`** | 🟡 Missing logic | ✅ RESOLVED | Extracted pure function mapping contact result to outcome, status, and follow-up date. Tested with Vitest unit tests and documented in `backend/RULES.md`. |
+| **Backend & PocketBase Wiring** | ❌ Mock only | ✅ RESOLVED | Pinned PocketBase `0.22.57`. Created collection migrations (`clients`, `contact_logs`, `users`), custom routes (`/api/ojl/dashboard`, `/api/ojl/contact-logs`), automatic code sequence triggers (`SAL-XXXX`, `ACT-XXXXX`), and Saudi mobile normalization. |
+| **No-Mock Enforcement** | ❌ Non-negotiable | ✅ RESOLVED | Completely deleted `src/lib/mock-data.ts`, fake user accounts, fake store. Production frontend talks strictly to PocketBase SDK via `src/lib/api.ts`. Empty database displays genuine Arabic empty states. |
+| **Screenshot & E2E Verification** | ❌ Unverified | ✅ RESOLVED | Captured 20 screenshots in `docs/screenshots/` (1280px & 390px, light & dark across all 5 views). Playwright E2E suite (`crm-flow.test.ts`) verifies end-to-end client creation, contact logging, and stats update. |
+

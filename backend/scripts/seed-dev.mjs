@@ -7,7 +7,7 @@
  * SAFETY GUARD: Refuses to run unless `--i-know-this-is-dev` flag is provided.
  *
  * Usage:
- *   node backend/scripts/seed-dev.mjs --i-know-this-is-dev
+ *   node backend/scripts/seed-dev.mjs --i-know-this-is-dev [--url=http://127.0.0.1:8090] [--superuser=...] [--password=...]
  */
 
 import PocketBase from "pocketbase";
@@ -19,14 +19,15 @@ if (!process.argv.includes("--i-know-this-is-dev")) {
   process.exit(1);
 }
 
-const pbUrl = process.env.VITE_PB_URL || process.env.PB_URL || "http://127.0.0.1:8090";
+const urlArg = process.argv.find((a) => a.startsWith("--url="))?.split("=")[1];
+const pbUrl = urlArg || process.env.VITE_PB_URL || process.env.PB_URL || "http://127.0.0.1:8090";
 const pb = new PocketBase(pbUrl);
 
 const DEMO_USERS = [
-  { email: "admin@ojlinker.sa", password: "AdminPass123!", name: "عمر الحربي", role: "admin" },
-  { email: "noura@ojlinker.sa", password: "AgentPass123!", name: "نورة العتيبي", role: "agent" },
-  { email: "sara@ojlinker.sa", password: "AgentPass123!", name: "سارة القحطاني", role: "agent" },
-  { email: "faisal@ojlinker.sa", password: "AgentPass123!", name: "فيصل الشهري", role: "agent" },
+  { email: "admin@ojlinker.sa", password: "AdminSecret123!", name: "عمر الحربي", role: "admin" },
+  { email: "noura@ojlinker.sa", password: "AgentSecret123!", name: "نورة العتيبي", role: "agent" },
+  { email: "sara@ojlinker.sa", password: "AgentSecret123!", name: "سارة القحطاني", role: "agent" },
+  { email: "faisal@ojlinker.sa", password: "AgentSecret123!", name: "فيصل الشهري", role: "agent" },
 ];
 
 function getRiyadhDateKey(date = new Date()) {
@@ -49,38 +50,54 @@ function makeDate(days) {
 }
 
 const salons = [
-  ["لمسة ورد", "الرياض", "صالون نسائي"],
-  ["أُنس بيوتي", "جدة", "مركز تجميل"],
-  ["صالون أرجوان", "مكة المكرمة", "صالون نسائي"],
-  ["خطوة أناقة", "الدمام", "صالون نسائي"],
-  ["مرايا الجمال", "الخبر", "سبا"],
-  ["صالون نخبة الرجال", "الرياض", "صالون رجالي"],
-  ["روشان بيوتي", "المدينة المنورة", "مركز تجميل"],
-  ["كادي سبا", "جدة", "سبا"],
-  ["صالون لمار", "أبها", "صالون نسائي"],
-  ["رويال كت", "الطائف", "حلاقة"],
-  ["مركز لافندر", "الرياض", "مركز تجميل"],
-  ["ريڤا بيوتي", "جدة", "صالون نسائي"],
-  ["صالون بلو", "تبوك", "صالون رجالي"],
-  ["دار ليان", "بريدة", "صالون نسائي"],
-  ["أريج سبا", "مكة المكرمة", "سبا"],
-  ["كريستال بيوتي", "الدمام", "مركز تجميل"],
-  ["صالون سمو", "الخبر", "صالون نسائي"],
-  ["مركز نواعم", "الرياض", "مركز تجميل"],
-  ["بيت الأناقة", "جدة", "صالون نسائي"],
-  ["رويال بيوتي", "المدينة المنورة", "صالون نسائي"],
-  ["صالون وسام", "الرياض", "حلاقة"],
-  ["تالا سبا", "أبها", "سبا"],
-  ["مركز بلوم", "الدمام", "مركز تجميل"],
-  ["لوفت كات", "الطائف", "صالون رجالي"],
-  ["جوري بيوتي", "جدة", "صالون نسائي"],
+  ["صالون لوسين للتجميل", "الرياض", "صالون نسائي"],
+  ["مركز أورا بيوتي", "الرياض", "مركز تجميل"],
+  ["دار الريم للسبا والعناية", "الرياض", "سبا"],
+  ["صالون لمسات نجد", "الرياض", "صالون نسائي"],
+  ["مركز إيفانا بيوتي سنتر", "جدة", "مركز تجميل"],
+  ["صالون لافندر بيوتي لاونج", "جدة", "صالون نسائي"],
+  ["سبا النخيل الفاخر", "جدة", "سبا"],
+  ["صالون فيولا هير آند سبا", "جدة", "صالون نسائي"],
+  ["صالون ميس روز للتجميل", "الدمام", "صالون نسائي"],
+  ["مركز إيلاف بيوتي كلينك", "الدمام", "مركز تجميل"],
+  ["صالون أنغام الشرقية", "الخبر", "صالون نسائي"],
+  ["صالون روز قيرل", "الخبر", "صالون نسائي"],
+  ["مركز لوزان للتزيين النسائي", "الرياض", "مركز تجميل"],
+  ["صالون الجوهرة للتجميل", "مكة المكرمة", "صالون نسائي"],
+  ["صالون ريماس هير استديو", "المدينة المنورة", "صالون نسائي"],
+  ["مركز بيلا سبا", "أبها", "سبا"],
+  ["صالون زهرة اللوتس", "الطائف", "صالون نسائي"],
+  ["مركز سحر الشرق بيوتي", "بريدة", "مركز تجميل"],
+  ["صالون نسرين للتزيين", "تبوك", "صالون نسائي"],
+  ["صالون هيفين بيوتي لاونج", "الرياض", "صالون نسائي"],
+  ["صالون ستايل كير", "الرياض", "صالون نسائي"],
+  ["مركز رتوش النسائي", "جدة", "مركز تجميل"],
+  ["صالون أسرار الجمال", "الدمام", "صالون نسائي"],
+  ["مركز درة الشرقية للسبا", "الخبر", "سبا"],
+  ["صالون أنامل الفضة", "الرياض", "صالون نسائي"],
 ];
 
-const people = ["نورة", "ريم", "سارة", "خالد", "لمى", "أمل", "فيصل", "هيا", "عبدالله", "دانة"];
 const sources = ["خرائط Google", "إنستجرام", "موقع إلكتروني", "دليل أعمال", "إحالة", "بحث يدوي", "مصدر آخر"];
 
 async function main() {
   console.log(`Connecting to ${pbUrl}...`);
+
+  // Optional superuser bootstrap
+  const superuserArg = process.argv.find((a) => a.startsWith("--superuser="))?.split("=")[1];
+  const passwordArg = process.argv.find((a) => a.startsWith("--password="))?.split("=")[1];
+
+  if (superuserArg && passwordArg) {
+    try {
+      const authRes = await pb.send("/api/admins/auth-with-password", {
+        method: "POST",
+        body: { identity: superuserArg, password: passwordArg },
+      });
+      pb.authStore.save(authRes.token, authRes.admin);
+      console.log(`Superuser authenticated: ${superuserArg}`);
+    } catch (e) {
+      console.warn("Could not authenticate superuser:", e.message);
+    }
+  }
 
   // 1. Ensure Demo Users exist
   const userMap = new Map();
@@ -109,14 +126,14 @@ async function main() {
     }
   }
 
-  // Authenticate as Admin
-  await pb.collection("users").authWithPassword("admin@ojlinker.sa", "AdminPass123!");
-  console.log("Authenticated as Admin.");
+  // Authenticate as Admin user
+  await pb.collection("users").authWithPassword("admin@ojlinker.sa", "AdminSecret123!");
+  console.log("Authenticated as Admin user.");
 
   // Check if clients already exist
   const existingClients = await pb.collection("clients").getList(1, 5);
   if (existingClients.totalItems > 0) {
-    console.log(`Database already contains ${existingClients.totalItems} clients. Skipping re-seeding to keep idempotency.`);
+    console.log(`Database already contains ${existingClients.totalItems} clients. Skipping re-seeding.`);
     return;
   }
 
@@ -139,67 +156,65 @@ async function main() {
       outcome = outcomes[i % outcomes.length];
       contactStatus = outcome === "مشترك" || outcome === "مهتم" || outcome === "طلب عرض" ? "ردّ" : "تم التواصل";
 
-      // Follow-up dates: overdue, due today, upcoming
-      if (i % 4 === 0) {
-        nextDate = makeDate(-((i % 5) + 1)); // Overdue
-      } else if (i % 4 === 1) {
-        nextDate = makeDate(0); // Due today!
-      } else if (i % 4 === 2) {
-        nextDate = makeDate(3 + (i % 10)); // Later
+      // 4 overdue (-3, -2, -1 days), 5 due today (0 days), rest future (+2 to +14)
+      if (i % 5 === 0) {
+        nextDate = makeDate(-1 * ((i % 3) + 1));
+      } else if (i % 4 === 0) {
+        nextDate = makeDate(0);
+      } else if (outcome !== "مشترك" && outcome !== "غير مهتم") {
+        nextDate = makeDate((i % 7) + 2);
       }
     }
+
+    const priorities = ["عالية", "متوسطة", "منخفضة"];
+    const priority = priorities[i % 3];
+    const source = sources[i % sources.length];
+    const owner = userIds.length > 0 ? userIds[i % userIds.length] : "";
 
     const client = await pb.collection("clients").create({
       code,
       name,
       city,
       business_type: businessType,
-      contact_person: people[i % people.length],
+      contact_person: `مسؤول صالون ${i + 1}`,
       phone,
-      website_url: i % 3 === 0 ? `https://instagram.com/salon${i + 1}` : "",
-      source: sources[i % sources.length],
-      priority: i % 3 === 0 ? "عالية" : i % 3 === 1 ? "متوسطة" : "منخفضة",
+      source,
+      priority,
       contact_status: contactStatus,
-      outcome: outcome,
-      last_contact_at: contacted ? new Date(Date.now() - ((i % 10) + 1) * 86400000).toISOString() : null,
+      outcome,
       next_follow_up_date: nextDate,
-      notes: i % 2 === 0 ? "مهتمة بنظام الحجوزات وإدارة مواعيد العميلات." : "تم التواصل عبر واتساب وعرض الباقة التأسيسية.",
-      owner: userIds[i % userIds.length] || null,
-      chat_url: `https://wa.me/${phone}`,
+      notes: contacted ? "تم التواصل عبر واتساب، الصالون أبدى اهتمامًا بالباقات السنوية." : "",
+      owner,
     });
+
     createdClientIds.push(client.id);
   }
 
-  console.log(`Created ${createdClientIds.length} demo clients.`);
+  console.log("Seeding 35 demo contact logs...");
+  const channels = ["واتساب", "اتصال هاتفي", "رسالة نصية", "إنستجرام"];
+  const results = ["مهتم", "طلب عرض", "طلب تجربة", "مشترك", "غير مهتم", "لم يرد", "إعادة التواصل لاحقًا"];
 
-  // 3. Seed demo contact logs
-  console.log("Seeding demo contact logs...");
-  const channels = ["واتساب", "اتصال هاتفي", "إنستجرام", "واتساب", "رسالة نصية"];
-  const results = ["مهتم", "لم يرد", "طلب تفاصيل", "طلب عرض", "طلب تجربة", "إعادة التواصل لاحقًا", "مشترك"];
-  const actions = ["إرسال تفاصيل", "تحديد موعد عرض", "متابعة لاحقًا", "انتظار الرد"];
-
-  for (let i = 0; i < 40; i++) {
-    const clientId = createdClientIds[i % createdClientIds.length];
-    const result = results[i % results.length];
-    const logDate = new Date(Date.now() - (i % 20) * 86400000);
+  for (let j = 0; j < 35; j++) {
+    const clientId = createdClientIds[j % createdClientIds.length];
+    const daysAgo = (j % 12);
+    const date = new Date(Date.now() - (daysAgo * 86400000) - (j * 3600000)).toISOString();
+    const result = results[j % results.length];
 
     await pb.collection("contact_logs").create({
-      code: `ACT-${String(i + 1).padStart(5, "0")}`,
+      code: `ACT-${String(j + 1).padStart(5, "0")}`,
       client: clientId,
-      contacted_at: logDate.toISOString(),
-      channel: channels[i % channels.length],
-      attempt_type: i % 3 === 0 ? "رسالة أولى" : i % 3 === 1 ? "متابعة أولى" : "مكالمة",
+      contacted_at: date,
+      channel: channels[j % channels.length],
+      attempt_type: j % 2 === 0 ? "رسالة أولى" : "متابعة أولى",
       replied: result === "لم يرد" ? "لا" : "نعم",
       result,
-      next_follow_up_date: result === "طلب عدم التواصل" ? null : makeDate(3),
-      reply_summary: result === "لم يرد" ? "لم يتم استلام رد حتى الآن" : "تمت مناقشة الباقات وأبدى العميل اهتمامه",
-      next_action: actions[i % actions.length],
-      chat_url: "",
-      created_by: userIds[i % userIds.length],
+      reply_summary: `تواصل تجريبي: ${result} مع تقديم تفاصيل الأسعار والعروض الخاصة.`,
+      next_action: result === "مشترك" ? "إغلاق العميل" : "متابعة لاحقًا",
+      created_by: userIds[j % userIds.length] || "",
     });
   }
 
-  console.log("Demo seeding completed successfully! ✨");
+  console.log("Done! Seeded 25 salons, 35 contact logs, and 4 team users.");
 }
 
 main().catch((err) => {

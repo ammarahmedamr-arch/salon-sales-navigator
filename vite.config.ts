@@ -26,8 +26,14 @@ export default defineConfig({
     allowedHosts: true,
     proxy: {
       // Forward PocketBase API + realtime to the local PocketBase instance.
-      "/api": { target: "http://127.0.0.1:8090", changeOrigin: true },
-      "/_": { target: "http://127.0.0.1:8090", changeOrigin: true },
+      "/api": {
+        target: process.env["VITE_PB_URL"] || "http://127.0.0.1:8090",
+        changeOrigin: true,
+      },
+      "/_": {
+        target: process.env["VITE_PB_URL"] || "http://127.0.0.1:8090",
+        changeOrigin: true,
+      },
     },
   },
 });
