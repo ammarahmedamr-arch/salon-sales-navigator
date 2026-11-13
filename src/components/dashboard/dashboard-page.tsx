@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Clock,
   Copy,
+  Edit3,
   ExternalLink,
   FileSpreadsheet,
   KeyRound,
@@ -31,8 +32,9 @@ import { useDashboardStats, useTeamUsers, useClients } from "@/hooks/use-crm";
 import { LogContactDialog } from "@/components/clients/log-contact-dialog";
 import { ClientFormDialog } from "@/components/clients/client-form-dialog";
 import { ImportExcelDialog } from "@/components/clients/import-excel-dialog";
+import { UserFormDialog } from "@/components/settings/user-form-dialog";
 import { buildWhatsAppUrl } from "@/lib/utils";
-import type { Client } from "@/lib/types";
+import type { AppUser, Client } from "@/lib/types";
 
 export function DashboardPage() {
   const navigate = useNavigate();
@@ -44,6 +46,8 @@ export function DashboardPage() {
   const [logDialogOpen, setLogDialogOpen] = useState(false);
   const [clientFormOpen, setClientFormOpen] = useState(false);
   const [importExcelOpen, setImportExcelOpen] = useState(false);
+  const [userFormOpen, setUserFormOpen] = useState(false);
+  const [selectedUserForEdit, setSelectedUserForEdit] = useState<AppUser | null>(null);
   const [selectedClientForLog, setSelectedClientForLog] = useState<Client | null>(null);
   const [copiedText, setCopiedText] = useState<string | null>(null);
 
@@ -294,9 +298,23 @@ export function DashboardPage() {
               يمكن لأي موظف تسجيل الدخول بحسابه ومتابعة الصالونات المسندة إليه
             </p>
           </div>
-          <Badge variant="outline" className="w-fit text-xs">
-            {teamUsers.length} أعضاء في الفريق
-          </Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setSelectedUserForEdit(null);
+                setUserFormOpen(true);
+              }}
+              className="h-8 gap-1.5 rounded-xl border-primary/30 text-xs font-semibold text-primary hover:bg-primary/5"
+            >
+              <UserPlus className="size-3.5" />
+              إضافة موظف جديد
+            </Button>
+            <Badge variant="outline" className="w-fit text-xs">
+              {teamUsers.length} أعضاء في الفريق
+            </Badge>
+          </div>
         </div>
 
         <div className="overflow-hidden rounded-2xl border border-border bg-background">
@@ -376,15 +394,29 @@ export function DashboardPage() {
                   </td>
 
                   <td className="p-3 text-end">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => navigate({ to: "/clients", search: { owner: user.id } })}
-                      className="h-7 gap-1 rounded-lg text-xs"
-                    >
-                      <span>صالوناته ({total})</span>
-                      <ExternalLink className="size-3" />
-                    </Button>
+                    <div className="flex items-center justify-end gap-1.5">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => navigate({ to: "/clients", search: { owner: user.id } })}
+                        className="h-7 gap-1 rounded-lg text-xs"
+                      >
+                        <span>صالوناته ({total})</span>
+                        <ExternalLink className="size-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          setSelectedUserForEdit(user);
+                          setUserFormOpen(true);
+                        }}
+                        className="size-7 rounded-lg text-muted-foreground hover:text-foreground"
+                        title="تعديل بيانات الموظف أو كلمة المرور أو حذفه"
+                      >
+                        <Edit3 className="size-3.5" />
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -525,6 +557,12 @@ export function DashboardPage() {
       <ImportExcelDialog
         open={importExcelOpen}
         onOpenChange={setImportExcelOpen}
+      />
+
+      <UserFormDialog
+        open={userFormOpen}
+        onOpenChange={setUserFormOpen}
+        user={selectedUserForEdit}
       />
     </div>
   );

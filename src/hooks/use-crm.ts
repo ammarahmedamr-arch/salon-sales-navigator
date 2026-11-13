@@ -159,3 +159,39 @@ export function useSaveContactLog() {
     },
   });
 }
+
+export function useCreateUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.users.create,
+    onSuccess: () => {
+      invalidateCrm(queryClient);
+      void queryClient.invalidateQueries({ queryKey: crmKeys.users });
+    },
+  });
+}
+
+export function useUpdateUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: {
+      id: string;
+      input: { name?: string; email?: string; password?: string; role?: "admin" | "agent" };
+    }) => api.users.update(data.id, data.input),
+    onSuccess: () => {
+      invalidateCrm(queryClient);
+      void queryClient.invalidateQueries({ queryKey: crmKeys.users });
+    },
+  });
+}
+
+export function useDeleteUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.users.delete,
+    onSuccess: () => {
+      invalidateCrm(queryClient);
+      void queryClient.invalidateQueries({ queryKey: crmKeys.users });
+    },
+  });
+}

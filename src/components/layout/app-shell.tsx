@@ -57,7 +57,7 @@ export function AppShell({ user }: { user: AppUser }) {
         </Link>;
       })}
     </nav>
-    {!collapsed && <div className="mx-3 mb-3 border-t border-border pt-4"><div className="flex items-center gap-3 rounded-xl bg-muted/70 px-3 py-3"><div className="flex -space-x-2 space-x-reverse">{["ع", "ن", "س"].slice(0, Math.min(activeUsers, 3)).map((letter, index) => <span key={letter} className={`team-dot team-dot-${index}`}>{letter}</span>)}</div><div className="min-w-0"><p className="text-xs font-semibold">فريق المبيعات</p><p className="mt-0.5 text-[11px] text-muted-foreground">{activeUsers} أعضاء نشطون</p></div></div></div>}
+    {!collapsed && <div className="mx-3 mb-3 border-t border-border pt-4"><div className="flex items-center gap-3 rounded-xl bg-muted/70 px-3 py-3"><div className="flex -space-x-2 space-x-reverse">{((users.data && users.data.length > 0) ? users.data : [{ name: user.name, id: "u" }]).slice(0, 3).map((u, index) => <span key={u.id || index} className={`team-dot team-dot-${index}`}>{u.name.slice(0, 1)}</span>)}</div><div className="min-w-0"><p className="text-xs font-semibold">فريق المبيعات</p><p className="mt-0.5 text-[11px] text-muted-foreground">{activeUsers} أعضاء نشطون</p></div></div></div>}
   </>;
   return <div className="app-frame min-h-screen bg-background text-foreground">
     <aside className={`sidebar hidden md:flex ${collapsed ? "sidebar-collapsed" : ""}`}><SidebarContents /><Button variant="ghost" size="icon" aria-label={collapsed ? "توسيع القائمة" : "تصغير القائمة"} title={collapsed ? "توسيع القائمة" : "تصغير القائمة"} onClick={() => setCollapsed(!collapsed)} className="m-3 mt-1"><Menu className="size-4" /></Button></aside>

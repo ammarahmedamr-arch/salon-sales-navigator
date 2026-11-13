@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useSaveClient, useTeamUsers } from "@/hooks/use-crm";
+import { api } from "@/lib/api";
 import {
   BUSINESS_TYPES,
   CITIES,
@@ -155,7 +156,15 @@ export function ClientFormDialog({
       onOpenChange(false);
       onSuccess?.(saved);
     } catch (err: any) {
-      toast.error(err?.message || "تعذّر حفظ بيانات الصالون");
+      const fieldErrors = err?.data?.data;
+      if (fieldErrors && typeof fieldErrors === "object" && Object.keys(fieldErrors).length > 0) {
+        const msgs = Object.entries(fieldErrors).map(([k, v]: any) => `${k}: ${v?.message || ""}`).join(", ");
+        toast.error(`خطأ في البيانات: ${msgs}`);
+      } else if (err?.status === 400 && err?.message === "Failed to create record.") {
+        toast.error("انتهت صلاحية الجلسة أو غير مصرح، يرجى إعادة تسجيل الدخول");
+      } else {
+        toast.error(err?.message || "تعذّر حفظ بيانات الصالون");
+      }
     }
   };
 

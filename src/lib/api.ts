@@ -76,6 +76,14 @@ function mapLogRecord(rec: any): ContactLog {
   };
 }
 
+// Setup global 401 handler
+pb.afterSend = (response, data) => {
+  if (response.status === 401) {
+    pb.authStore.clear();
+  }
+  return data;
+};
+
 export const api = {
   clients: {
     async list(params: ClientListParams = {}): Promise<PaginatedResult<Client>> {
@@ -203,10 +211,20 @@ export const api = {
     },
 
     async create(input: ClientInput): Promise<Client> {
-      const record = await pb.collection("clients").create({
+      const payload: Record<string, any> = {
         ...input,
         phone: normalizePhone(input.phone),
-      });
+      };
+      if (!payload["owner"] || payload["owner"] === "none") {
+        payload["owner"] = null;
+      }
+      if (!payload["next_follow_up_date"]) {
+        payload["next_follow_up_date"] = null;
+      }
+      if (!payload["last_contact_at"]) {
+        payload["last_contact_at"] = null;
+      }
+      const record = await pb.collection("clients").create(payload);
       return mapClientRecord(record, 0);
     },
 
@@ -214,6 +232,15 @@ export const api = {
       const payload: Record<string, any> = { ...input };
       if (payload["phone"]) {
         payload["phone"] = normalizePhone(payload["phone"]);
+      }
+      if (payload["owner"] !== undefined) {
+        payload["owner"] = payload["owner"] && payload["owner"] !== "none" ? payload["owner"] : null;
+      }
+      if (payload["next_follow_up_date"] !== undefined && !payload["next_follow_up_date"]) {
+        payload["next_follow_up_date"] = null;
+      }
+      if (payload["last_contact_at"] !== undefined && !payload["last_contact_at"]) {
+        payload["last_contact_at"] = null;
       }
       const record = await pb.collection("clients").update(id, payload);
       return mapClientRecord(record);
@@ -394,13 +421,19 @@ export const api = {
       if (!pb.authStore.isValid || !pb.authStore.model) {
         return null;
       }
-      const model = pb.authStore.model as any;
-      return {
-        id: model["id"],
-        name: model["name"] || model["email"],
-        email: model["email"],
-        role: model["role"] || "agent",
-      };
+      try {
+        const authData = await pb.collection("users").authRefresh();
+        const model = authData.record as any;
+        return {
+          id: model["id"],
+          name: model["name"] || model["email"],
+          email: model["email"],
+          role: model["role"] || "agent",
+        };
+      } catch {
+        pb.authStore.clear();
+        return null;
+      }
     },
 
     async listUsers(): Promise<AppUser[]> {
@@ -450,6 +483,32 @@ export const api = {
 
     async delete(id: string): Promise<boolean> {
       return await pb.collection("users").delete(id);
+    },
+
+    async update(
+      id: string,
+      data: {
+        name?: string;
+        email?: string;
+        password?: string;
+        role?: "admin" | "agent";
+      }
+    ): Promise<AppUser> {
+      const payload: Record<string, any> = {};
+      if (data.name !== undefined) payload["name"] = data.name;
+      if (data.email !== undefined) payload["email"] = data.email;
+      if (data.role !== undefined) payload["role"] = data.role;
+      if (data.password && data.password.trim().length >= 8) {
+        payload["password"] = data.password.trim();
+        payload["passwordConfirm"] = data.password.trim();
+      }
+      const record = (await pb.collection("users").update(id, payload)) as any;
+      return {
+        id: record["id"],
+        name: record["name"],
+        email: record["email"],
+        role: record["role"],
+      };
     },
   },
 };
