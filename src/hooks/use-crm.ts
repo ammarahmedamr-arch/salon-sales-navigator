@@ -75,6 +75,8 @@ export function useTeamUsers() {
   });
 }
 
+export const useUsers = useTeamUsers;
+
 function invalidateCrm(queryClient: ReturnType<typeof useQueryClient>) {
   void queryClient.invalidateQueries({ queryKey: crmKeys.clients });
   void queryClient.invalidateQueries({ queryKey: crmKeys.logs });

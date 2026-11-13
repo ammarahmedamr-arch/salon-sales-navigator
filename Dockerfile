@@ -30,3 +30,4 @@ EXPOSE 8090
 VOLUME ["/app/backend/pb_data"]
 
 CMD ["./backend/pocketbase", "serve", "--http=0.0.0.0:8090", "--dir=./backend/pb_data", "--publicDir=./dist", "--indexFallback=true"]
+

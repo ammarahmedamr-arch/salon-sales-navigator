@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Edit2,
   Eye,
+  FileSpreadsheet,
   Filter,
   MessageSquare,
   Phone,
@@ -35,6 +36,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useClients } from "@/hooks/use-crm";
 import { LogContactDialog } from "@/components/clients/log-contact-dialog";
 import { ClientFormDialog } from "@/components/clients/client-form-dialog";
+import { ImportExcelDialog } from "@/components/clients/import-excel-dialog";
 import { ClientSheet } from "@/components/clients/client-sheet";
 import {
   BUSINESS_TYPES,
@@ -88,6 +90,7 @@ function ClientsPage() {
   // Dialog & Sheet States
   const [logDialogOpen, setLogDialogOpen] = useState(false);
   const [formDialogOpen, setFormDialogOpen] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
 
@@ -154,16 +157,26 @@ function ClientsPage() {
             إدارة قاعدة بيانات الصالونات، متابعة الحالات، وتحديث السجلات ({totalItems} صالون)
           </p>
         </div>
-        <Button
-          onClick={() => {
-            setSelectedClient(null);
-            setFormDialogOpen(true);
-          }}
-          className="h-10 gap-2 rounded-xl shadow-xs"
-        >
-          <Plus className="size-4" />
-          إضافة صالون جديد
-        </Button>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Button
+            onClick={() => setImportDialogOpen(true)}
+            variant="outline"
+            className="h-10 gap-2 rounded-xl border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10"
+          >
+            <FileSpreadsheet className="size-4" />
+            استيراد من Excel
+          </Button>
+          <Button
+            onClick={() => {
+              setSelectedClient(null);
+              setFormDialogOpen(true);
+            }}
+            className="h-10 gap-2 rounded-xl shadow-xs"
+          >
+            <Plus className="size-4" />
+            إضافة صالون جديد
+          </Button>
+        </div>
       </div>
 
       {/* Filter Bar */}
@@ -457,6 +470,11 @@ function ClientsPage() {
         open={formDialogOpen}
         onOpenChange={setFormDialogOpen}
         client={selectedClient}
+      />
+
+      <ImportExcelDialog
+        open={importDialogOpen}
+        onOpenChange={setImportDialogOpen}
       />
 
       <ClientSheet

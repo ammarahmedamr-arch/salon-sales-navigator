@@ -1,39 +1,41 @@
 import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
-  Activity,
   AlertCircle,
-  ArrowUpRight,
   Building2,
-  Calendar,
   CheckCircle2,
-  ChevronLeft,
   Clock,
+  ExternalLink,
   FileSpreadsheet,
-  HelpCircle,
-  MapPin,
   MessageSquare,
   Phone,
+  PhoneCall,
   Plus,
   Send,
   Sparkles,
-  TrendingUp,
-  UserCheck,
   Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useDashboardStats } from "@/hooks/use-crm";
+import { Progress } from "@/components/ui/progress";
+import { useDashboardStats, useTeamUsers, useClients } from "@/hooks/use-crm";
 import { LogContactDialog } from "@/components/clients/log-contact-dialog";
-import { buildWhatsAppUrl, formatArabicDate } from "@/lib/utils";
+import { ClientFormDialog } from "@/components/clients/client-form-dialog";
+import { ImportExcelDialog } from "@/components/clients/import-excel-dialog";
+import { buildWhatsAppUrl } from "@/lib/utils";
 import type { Client } from "@/lib/types";
 
 export function DashboardPage() {
   const navigate = useNavigate();
   const { data: stats, isLoading, isError } = useDashboardStats();
+  const { data: teamUsers = [] } = useTeamUsers();
+  const { data: allClientsData } = useClients({ perPage: 1000 });
+
+  // Dialog States
   const [logDialogOpen, setLogDialogOpen] = useState(false);
+  const [clientFormOpen, setClientFormOpen] = useState(false);
+  const [importExcelOpen, setImportExcelOpen] = useState(false);
   const [selectedClientForLog, setSelectedClientForLog] = useState<Client | null>(null);
 
   const openLogForClient = (client: Client) => {
@@ -44,19 +46,13 @@ export function DashboardPage() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-10 w-36" />
-        </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-4">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} className="h-24 rounded-2xl" />
+        <Skeleton className="h-12 w-64 rounded-xl" />
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-28 rounded-2xl" />
           ))}
         </div>
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <Skeleton className="h-72 rounded-2xl lg:col-span-2" />
-          <Skeleton className="h-72 rounded-2xl" />
-        </div>
+        <Skeleton className="h-64 rounded-2xl" />
       </div>
     );
   }
@@ -73,125 +69,65 @@ export function DashboardPage() {
     );
   }
 
-  // Real empty state when DB has 0 clients
-  if (stats.total === 0) {
-    return (
-      <div className="space-y-6">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">لوحة المتابعة</h1>
-            <p className="text-sm text-muted-foreground">نظرة عامة على أداء التواصل مع الصالونات</p>
-          </div>
-        </div>
+  const clients = allClientsData?.items ?? [];
 
-        <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-border bg-card/60 p-16 text-center shadow-xs">
-          <div className="grid size-16 place-items-center rounded-2xl bg-primary/10 text-primary">
-            <Building2 className="size-8" />
-          </div>
-          <h2 className="mt-6 text-xl font-bold">لا يوجد صالونات مسجلة بعد</h2>
-          <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-            ابدأ رحلة المبيعات بإضافة أول صالون أو استيراد الصالونات وقائمة العملاء السابقة من ملف Excel.
-          </p>
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-            <Button
-              onClick={() => navigate({ to: "/clients" })}
-              className="h-10 gap-2 rounded-xl"
-            >
-              <Plus className="size-4" />
-              إضافة عميل جديد
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => navigate({ to: "/settings" })}
-              className="h-10 gap-2 rounded-xl"
-            >
-              <FileSpreadsheet className="size-4" />
-              تعليمات الاستيراد
-            </Button>
-          </div>
-        </div>
-      </div>
+  // Calculate team assignments
+  const teamStats = teamUsers.map((user) => {
+    const userClients = clients.filter(
+      (c) => c.owner === user.id || c.owner === user.name
     );
-  }
+    const contacted = userClients.filter((c) => c.contact_status !== "لم يتم التواصل").length;
+    const subscribed = userClients.filter((c) => c.outcome === "مشترك").length;
+    return {
+      user,
+      total: userClients.length,
+      contacted,
+      subscribed,
+    };
+  });
 
-  const kpis = [
-    {
-      title: "إجمالي العملاء",
-      value: stats.total,
-      description: "جميع الصالونات المسجلة",
-      href: "/clients",
-      icon: Users,
-      badgeColor: "bg-muted text-muted-foreground",
-    },
-    {
-      title: "تم التواصل",
-      value: stats.contacted,
-      description: `${Math.round((stats.contacted / stats.total) * 100)}% من الإجمالي`,
-      href: "/clients",
-      icon: Send,
-      badgeColor: "bg-primary/10 text-primary",
-    },
-    {
-      title: "ردّ الصالون",
-      value: stats.replied,
-      description: stats.contacted > 0 ? `${Math.round((stats.replied / stats.contacted) * 100)}% معدل الاستجابة` : "0%",
-      href: "/clients",
-      icon: MessageSquare,
-      badgeColor: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
-    },
-    {
-      title: "صالونات مهتمة",
-      value: stats.interested,
-      description: "فرص بيع نشطة",
-      href: "/clients",
-      icon: Sparkles,
-      badgeColor: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-    },
-    {
-      title: "متابعات مستحقة",
-      value: stats.due,
-      description: "مستحقة اليوم أو متأخرة",
-      href: "/today",
-      icon: Clock,
-      badgeColor: stats.due > 0 ? "bg-amber-500/15 text-amber-700 dark:text-amber-400 font-bold" : "bg-muted text-muted-foreground",
-    },
-    {
-      title: "عروض وتجارب",
-      value: stats.demos,
-      description: "طلبوا عرض سعر أو ديمو",
-      href: "/clients",
-      icon: TrendingUp,
-      badgeColor: "bg-purple-500/10 text-purple-600 dark:text-purple-400",
-    },
-    {
-      title: "مشتركون",
-      value: stats.subscribed,
-      description: "صفقات منجزة بنجاح",
-      href: "/clients",
-      icon: CheckCircle2,
-      badgeColor: "bg-accent/30 text-accent-foreground font-bold",
-    },
-    {
-      title: "غير مهتمين",
-      value: stats.notInterested,
-      description: "تم استبعادهم حاليًا",
-      href: "/clients",
-      icon: HelpCircle,
-      badgeColor: "bg-muted text-muted-foreground",
-    },
-  ];
+  // Calculate primary simple metrics
+  const totalSalons = stats.total;
+  const contactedCount = stats.contacted;
+  const activeOpportunities = stats.interested + stats.demos;
+  const subscribedCount = stats.subscribed;
+  const uncontactedCount = Math.max(0, totalSalons - contactedCount);
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      {/* 1. Header Banner & Big Quick Actions */}
+      <div className="flex flex-col gap-4 rounded-3xl border border-border bg-gradient-to-b from-card to-card/60 p-6 shadow-xs sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">لوحة المتابعة</h1>
-          <p className="text-xs text-muted-foreground sm:text-sm">
-            متابعة فورية لنتائج التواصل ومؤشرات أداء فريق المبيعات
+          <div className="flex items-center gap-2">
+            <span className="grid size-9 place-items-center rounded-xl bg-primary/10 text-primary">
+              <Building2 className="size-5" />
+            </span>
+            <h1 className="text-2xl font-bold tracking-tight">متابعة مبيعات الصالونات</h1>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
+            أضف صالونات جديدة، وزّعها على فريق المبيعات، وتابع الاتصالات اليومية بسهولة
           </p>
         </div>
-        <div className="flex items-center gap-2">
+
+        {/* 3 Prominent Action Buttons */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Button
+            onClick={() => setImportExcelOpen(true)}
+            className="h-10 gap-2 rounded-xl bg-emerald-600 font-semibold text-white shadow-xs hover:bg-emerald-700 dark:bg-emerald-700 dark:hover:bg-emerald-600"
+          >
+            <FileSpreadsheet className="size-4" />
+            استيراد من Excel
+          </Button>
+
+          <Button
+            onClick={() => setClientFormOpen(true)}
+            variant="outline"
+            className="h-10 gap-2 rounded-xl border-primary/30 text-primary hover:bg-primary/5"
+          >
+            <Plus className="size-4" />
+            إضافة صالون
+          </Button>
+
           <Button
             onClick={() => {
               setSelectedClientForLog(null);
@@ -199,271 +135,382 @@ export function DashboardPage() {
             }}
             className="h-10 gap-2 rounded-xl shadow-xs"
           >
-            <Plus className="size-4" />
-            تسجيل تواصل جديد
+            <PhoneCall className="size-4" />
+            تسجيل تواصل
           </Button>
         </div>
       </div>
 
-      {/* 8 KPI Cards Grid */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-4">
-        {kpis.map((kpi) => {
-          const Icon = kpi.icon;
-          return (
-            <Link
-              key={kpi.title}
-              to={kpi.href}
-              className="group relative overflow-hidden rounded-2xl border border-border bg-card p-4 transition-all hover:border-primary/40 hover:shadow-md"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-muted-foreground">{kpi.title}</span>
-                <span className={`grid size-7 place-items-center rounded-lg ${kpi.badgeColor}`}>
-                  <Icon className="size-3.5" />
-                </span>
-              </div>
-              <div className="mt-3 flex items-baseline gap-2">
-                <span className="text-2xl font-bold tracking-tight">{kpi.value}</span>
-              </div>
-              <p className="mt-1 text-[11px] text-muted-foreground">{kpi.description}</p>
-            </Link>
-          );
-        })}
+      {/* 2. Simplified 4 Key Metric Cards */}
+      <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-4">
+        {/* Total Salons */}
+        <Link
+          to="/clients"
+          className="group relative overflow-hidden rounded-2xl border border-border bg-card p-4 transition-all hover:border-primary/40 hover:shadow-md"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">إجمالي الصالونات</span>
+            <span className="grid size-8 place-items-center rounded-xl bg-primary/10 text-primary">
+              <Users className="size-4" />
+            </span>
+          </div>
+          <div className="mt-2 text-3xl font-extrabold tracking-tight">{totalSalons}</div>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {uncontactedCount > 0 ? `${uncontactedCount} لم يتم التواصل معهم بعد` : "تم بدء التواصل مع الجميع"}
+          </p>
+        </Link>
+
+        {/* Contacted */}
+        <Link
+          to="/clients"
+          search={{ status: "تم التواصل" }}
+          className="group relative overflow-hidden rounded-2xl border border-border bg-card p-4 transition-all hover:border-primary/40 hover:shadow-md"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">تم التواصل معهم</span>
+            <span className="grid size-8 place-items-center rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
+              <Send className="size-4" />
+            </span>
+          </div>
+          <div className="mt-2 text-3xl font-extrabold tracking-tight text-blue-600 dark:text-blue-400">
+            {contactedCount}
+          </div>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {totalSalons > 0 ? `${Math.round((contactedCount / totalSalons) * 100)}% معدل التغطية` : "0%"}
+          </p>
+        </Link>
+
+        {/* Active Opportunities */}
+        <Link
+          to="/clients"
+          search={{ outcome: "مهتم" }}
+          className="group relative overflow-hidden rounded-2xl border border-border bg-card p-4 transition-all hover:border-primary/40 hover:shadow-md"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">مهتمون وعروض نشطة</span>
+            <span className="grid size-8 place-items-center rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400">
+              <Sparkles className="size-4" />
+            </span>
+          </div>
+          <div className="mt-2 text-3xl font-extrabold tracking-tight text-purple-600 dark:text-purple-400">
+            {activeOpportunities}
+          </div>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {stats.interested} مهتم + {stats.demos} طلبوا ديمو/عرض
+          </p>
+        </Link>
+
+        {/* Subscribed */}
+        <Link
+          to="/clients"
+          search={{ outcome: "مشترك" }}
+          className="group relative overflow-hidden rounded-2xl border border-emerald-500/30 bg-card p-4 transition-all hover:border-emerald-500/60 hover:shadow-md"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">مشتركون بنجاح</span>
+            <span className="grid size-8 place-items-center rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="size-4" />
+            </span>
+          </div>
+          <div className="mt-2 text-3xl font-extrabold tracking-tight text-emerald-600 dark:text-emerald-400">
+            {subscribedCount}
+          </div>
+          <p className="mt-1 text-[11px] font-semibold text-emerald-600">
+            صفقات تم إغلاقها بنجاح 🎉
+          </p>
+        </Link>
       </div>
 
-      {/* Sales Funnel & City Distribution Grid */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Sales Funnel Card */}
-        <Card className="rounded-2xl border-border lg:col-span-2">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-base font-bold">قمع المبيعات ومراحل التحويل</CardTitle>
-                <CardDescription className="text-xs">
-                  تدرج الصالونات من أول تواصل حتى الاشتراك الفعلي
-                </CardDescription>
-              </div>
-              <TrendingUp className="size-4 text-muted-foreground" />
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3 pt-2">
-            {stats.funnel.map((step) => {
-              const maxCount = Math.max(stats.total, 1);
-              const pct = Math.round((step.count / maxCount) * 100);
-              return (
-                <div key={step.label} className="space-y-1">
-                  <div className="flex items-center justify-between text-xs font-medium">
-                    <span className="text-foreground">{step.label}</span>
-                    <span className="text-muted-foreground">
-                      {step.count} صالون ({pct}%)
-                    </span>
+      {/* Secondary Fast Indicators Strip */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-muted/30 px-5 py-3 text-xs">
+        <div className="flex items-center gap-6">
+          <Link to="/today" className="flex items-center gap-1.5 hover:text-primary">
+            <Clock className="size-3.5 text-amber-500" />
+            <span>متابعات مستحقة اليوم أو متأخرة:</span>
+            <Badge variant="secondary" className="font-bold text-amber-600">
+              {stats.due}
+            </Badge>
+          </Link>
+
+          <Link to="/clients" search={{ status: "في انتظار الرد" }} className="flex items-center gap-1.5 hover:text-primary">
+            <MessageSquare className="size-3.5 text-blue-500" />
+            <span>بانتظار الرد:</span>
+            <Badge variant="secondary">{Math.max(0, stats.contacted - stats.replied)}</Badge>
+          </Link>
+
+          <Link to="/clients" search={{ outcome: "غير مهتم" }} className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
+            <span>غير مهتمين:</span>
+            <span>{stats.notInterested}</span>
+          </Link>
+        </div>
+
+        <Link to="/clients" className="flex items-center gap-1 font-semibold text-primary hover:underline">
+          <span>عرض جميع الصالونات ({totalSalons})</span>
+          <ChevronLeftIcon className="size-3.5" />
+        </Link>
+      </div>
+
+      {/* 3. Team Salon Distribution Section */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Users className="size-5 text-primary" />
+            <h2 className="text-lg font-bold">توزيع الصالونات على فريق المبيعات</h2>
+          </div>
+          <span className="text-xs text-muted-foreground">
+            توزيع ومتابعة أداء كل مندوب في تغطية الصالونات
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {teamStats.map(({ user, total, contacted, subscribed }) => {
+            const coveragePercent = total > 0 ? Math.round((contacted / total) * 100) : 0;
+            return (
+              <div
+                key={user.id}
+                className="rounded-2xl border border-border bg-card p-4 shadow-2xs transition-all hover:border-primary/30"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-bold text-foreground">{user.name}</h3>
+                    <p className="text-xs text-muted-foreground">{user.email}</p>
                   </div>
-                  <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full rounded-full transition-all duration-500"
-                      style={{
-                        width: `${Math.max(pct, 2)}%`,
-                        backgroundColor: step.fill,
-                      }}
-                    />
+                  <Badge variant={user.role === "admin" ? "default" : "secondary"} className="text-[10px]">
+                    {user.role === "admin" ? "مدير النظام" : "مسؤول مبيعات"}
+                  </Badge>
+                </div>
+
+                <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded-xl bg-muted/40 p-2">
+                    <span className="text-[10px] text-muted-foreground">الصالونات</span>
+                    <p className="text-base font-bold">{total}</p>
+                  </div>
+                  <div className="rounded-xl bg-blue-500/10 p-2">
+                    <span className="text-[10px] text-blue-600">تواصل معهم</span>
+                    <p className="text-base font-bold text-blue-600">{contacted}</p>
+                  </div>
+                  <div className="rounded-xl bg-emerald-500/10 p-2">
+                    <span className="text-[10px] text-emerald-600">المشتركين</span>
+                    <p className="text-base font-bold text-emerald-600">{subscribed}</p>
+                  </div>
+                </div>
+
+                <div className="mt-3 space-y-1">
+                  <div className="flex justify-between text-[11px] text-muted-foreground">
+                    <span>نسبة الإنجاز:</span>
+                    <span className="font-bold">{coveragePercent}%</span>
+                  </div>
+                  <Progress value={coveragePercent} className="h-1.5" />
+                </div>
+
+                <div className="mt-3 pt-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => navigate({ to: "/clients", search: { q: user.name } })}
+                    className="h-8 w-full gap-1.5 rounded-lg text-xs text-primary hover:bg-primary/5"
+                  >
+                    <span>عرض صالونات {user.name}</span>
+                    <ExternalLink className="size-3" />
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 4. Actionable Priority Follow-ups for Today */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Clock className="size-5 text-amber-600" />
+            <h2 className="text-lg font-bold">صالونات تحتاج متابعة اليوم</h2>
+          </div>
+          <Link
+            to="/today"
+            className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+          >
+            <span>عرض جدول المتابعات الكامل</span>
+            <ChevronLeftIcon className="size-3.5" />
+          </Link>
+        </div>
+
+        {stats.followUps && stats.followUps.length > 0 ? (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {stats.followUps.map((client) => {
+              const waLink = buildWhatsAppUrl(
+                client.phone,
+                `السلام عليكم ${client.contact_person ? "أ / " + client.contact_person : ""}، معك فريق OJLinker بخصوص خدمات صالون ${client.name}.`
+              );
+
+              return (
+                <div
+                  key={client.id}
+                  className="flex flex-col justify-between rounded-2xl border border-border bg-card p-4 shadow-2xs transition-all hover:border-primary/40"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono text-xs text-muted-foreground">{client.code}</span>
+                          <Badge variant="outline" className="text-[10px]">
+                            {client.business_type}
+                          </Badge>
+                        </div>
+                        <h4 className="mt-1 font-bold text-foreground">{client.name}</h4>
+                      </div>
+                      <Badge
+                        variant="secondary"
+                        className={
+                          client.priority === "عالية"
+                            ? "bg-rose-500/10 font-bold text-rose-600"
+                            : "bg-muted text-muted-foreground"
+                        }
+                      >
+                        {client.priority}
+                      </Badge>
+                    </div>
+
+                    <div className="space-y-1 text-xs text-muted-foreground">
+                      <p>📍 {client.city} {client.contact_person ? `• ${client.contact_person}` : ""}</p>
+                      <p className="dir-ltr text-start font-mono">{client.phone}</p>
+                      {client.notes && (
+                        <p className="line-clamp-2 rounded-lg bg-muted/40 p-1.5 text-[11px] text-foreground">
+                          💬 {client.notes}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 1-Click Action Bar */}
+                  <div className="mt-4 flex items-center gap-2 border-t border-border pt-3">
+                    <a
+                      href={waLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1"
+                    >
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-full gap-1.5 rounded-xl border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10"
+                      >
+                        <MessageSquare className="size-3.5" />
+                        واتساب
+                      </Button>
+                    </a>
+
+                    <a href={`tel:${client.phone}`} className="flex-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-full gap-1.5 rounded-xl text-xs"
+                      >
+                        <Phone className="size-3.5" />
+                        اتصال
+                      </Button>
+                    </a>
+
+                    <Button
+                      size="sm"
+                      onClick={() => openLogForClient(client)}
+                      className="h-8 gap-1.5 rounded-xl text-xs"
+                    >
+                      <PhoneCall className="size-3.5" />
+                      تسجيل النتيجة
+                    </Button>
                   </div>
                 </div>
               );
             })}
-          </CardContent>
-        </Card>
-
-        {/* City Distribution Card */}
-        <Card className="rounded-2xl border-border">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-base font-bold">توزيع المدن</CardTitle>
-                <CardDescription className="text-xs">الصالونات حسب المنطقة</CardDescription>
-              </div>
-              <MapPin className="size-4 text-muted-foreground" />
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-2.5 pt-2">
-            {stats.cities.length === 0 ? (
-              <p className="py-6 text-center text-xs text-muted-foreground">لا توجد بيانات مدن بعد</p>
-            ) : (
-              stats.cities.slice(0, 6).map((city) => {
-                const cityPct = Math.round((city.value / Math.max(stats.total, 1)) * 100);
-                return (
-                  <div key={city.name} className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="size-2 rounded-full bg-primary" />
-                      <span className="font-medium text-foreground">{city.name}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <span>{city.value} صالون</span>
-                      <span className="text-[11px] font-semibold text-primary/80">({cityPct}%)</span>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </CardContent>
-        </Card>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card/60 p-8 text-center text-xs text-muted-foreground">
+            <CheckCircle2 className="size-8 text-emerald-500" />
+            <p className="mt-2 font-bold text-foreground">رائع! لا توجد متابعات متأخرة أو مستحقة اليوم</p>
+            <p className="mt-0.5 text-muted-foreground">
+              يمكنك استيراد صالونات جديدة وتوزيعها لبدء جولة تواصل جديدة.
+            </p>
+          </div>
+        )}
       </div>
 
-      {/* Two Columns: Top Follow-ups & Recent Activity */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Top 5 Follow-ups (Due Today / Overdue) */}
-        <Card className="rounded-2xl border-border">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2 text-base font-bold">
-                  <Clock className="size-4 text-amber-500" />
-                  أهم المتابعات المطلوبة
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  الصالونات ذات الأولوية الأعلى التي تحتاج متابعة
-                </CardDescription>
-              </div>
-              <Link to="/today" className="text-xs font-semibold text-primary hover:underline">
-                عرض الكل
-              </Link>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-2.5 pt-1">
-            {stats.followUps.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-center">
-                <CheckCircle2 className="size-8 text-emerald-500" />
-                <p className="mt-2 text-xs font-semibold text-foreground">
-                  رائع! لا توجد متابعات متأخرة اليوم
-                </p>
-                <p className="text-[11px] text-muted-foreground">جميع المتابعات محدثة</p>
-              </div>
-            ) : (
-              stats.followUps.map((client) => {
-                const waUrl = buildWhatsAppUrl(client.phone, `مرحبًا ${client.name}، نود متابعة تواصلنا معكم.`);
-                const isOverdue = client.follow_up_state === "متأخرة";
-                return (
-                  <div
-                    key={client.id}
-                    className="flex flex-col gap-2 rounded-xl border border-border/70 bg-card p-3 transition-colors hover:bg-muted/40 sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <Link
-                          to="/clients"
-                          search={{ q: client.code, page: 1 }}
-                          className="truncate text-sm font-bold text-foreground hover:text-primary"
-                        >
-                          {client.name}
-                        </Link>
-                        <Badge
-                          variant={client.priority === "عالية" ? "destructive" : "secondary"}
-                          className="text-[10px] px-1.5 py-0"
-                        >
-                          {client.priority}
-                        </Badge>
-                        <span
-                          className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
-                            isOverdue
-                              ? "bg-destructive/15 text-destructive"
-                              : "bg-amber-500/15 text-amber-800 dark:text-amber-300"
-                          }`}
-                        >
-                          {isOverdue ? "متأخرة" : "مستحقة اليوم"}
-                        </span>
-                      </div>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        {client.code} · {client.city} · {client.next_follow_up_date || "اليوم"}
-                      </p>
-                    </div>
+      {/* 5. Sales Funnel Visual Progress */}
+      <div className="rounded-3xl border border-border bg-card p-6 shadow-xs">
+        <h3 className="text-base font-bold">مسار تحويل المبيعات (Sales Funnel)</h3>
+        <p className="text-xs text-muted-foreground">
+          رحلة الصالون من الاستيراد وحتى الاشتراك الفعلي
+        </p>
 
-                    <div className="flex items-center gap-2 self-end sm:self-center">
-                      <a
-                        href={waUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex size-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 transition-colors hover:bg-emerald-500/20"
-                        title="محادثة واتساب"
-                      >
-                        <MessageSquare className="size-4" />
-                      </a>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => openLogForClient(client)}
-                        className="h-8 rounded-lg text-xs"
-                      >
-                        تسجيل
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </CardContent>
-        </Card>
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="rounded-xl border border-border bg-muted/20 p-3">
+            <span className="text-xs text-muted-foreground">1. إجمالي الصالونات</span>
+            <p className="text-lg font-bold">{totalSalons}</p>
+            <Progress value={100} className="mt-2 h-1.5" />
+          </div>
 
-        {/* Recent Activity Stream */}
-        <Card className="rounded-2xl border-border">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2 text-base font-bold">
-                  <Activity className="size-4 text-primary" />
-                  آخر عمليات التواصل
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  سجل المحاولات والمحادثات الأخيرة للفريق
-                </CardDescription>
-              </div>
-              <Link to="/log" className="text-xs font-semibold text-primary hover:underline">
-                عرض السجل الكامل
-              </Link>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-2.5 pt-1">
-            {(!stats.recentLogs || stats.recentLogs.length === 0) ? (
-              <p className="py-8 text-center text-xs text-muted-foreground">
-                لم يتم تسجيل أي تواصل بعد
-              </p>
-            ) : (
-              stats.recentLogs.slice(0, 5).map((log: any) => (
-                <div
-                  key={log.id}
-                  className="flex items-start justify-between gap-3 rounded-xl border border-border/70 bg-card p-3"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="truncate text-xs font-bold text-foreground">
-                        {log.client_name || "صالون"}
-                      </span>
-                      <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                        {log.channel}
-                      </span>
-                      <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
-                        {log.result}
-                      </span>
-                    </div>
-                    {log.reply_summary && (
-                      <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
-                        {log.reply_summary}
-                      </p>
-                    )}
-                  </div>
-                  <span className="shrink-0 text-[11px] text-muted-foreground">
-                    {formatArabicDate(log.contacted_at)}
-                  </span>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
+          <div className="rounded-xl border border-border bg-muted/20 p-3">
+            <span className="text-xs text-muted-foreground">2. تم التواصل معهم</span>
+            <p className="text-lg font-bold text-blue-600">{contactedCount}</p>
+            <Progress
+              value={totalSalons > 0 ? (contactedCount / totalSalons) * 100 : 0}
+              className="mt-2 h-1.5"
+            />
+          </div>
+
+          <div className="rounded-xl border border-border bg-muted/20 p-3">
+            <span className="text-xs text-muted-foreground">3. مهتمون / عروض</span>
+            <p className="text-lg font-bold text-purple-600">{activeOpportunities}</p>
+            <Progress
+              value={totalSalons > 0 ? (activeOpportunities / totalSalons) * 100 : 0}
+              className="mt-2 h-1.5"
+            />
+          </div>
+
+          <div className="rounded-xl border border-border bg-muted/20 p-3">
+            <span className="text-xs text-muted-foreground">4. مشتركون بنجاح</span>
+            <p className="text-lg font-bold text-emerald-600">{subscribedCount}</p>
+            <Progress
+              value={totalSalons > 0 ? (subscribedCount / totalSalons) * 100 : 0}
+              className="mt-2 h-1.5"
+            />
+          </div>
+        </div>
       </div>
 
-      {/* Log Contact Dialog */}
+      {/* Dialogs */}
       <LogContactDialog
         open={logDialogOpen}
         onOpenChange={setLogDialogOpen}
         client={selectedClientForLog}
       />
+
+      <ClientFormDialog
+        open={clientFormOpen}
+        onOpenChange={setClientFormOpen}
+        client={null}
+      />
+
+      <ImportExcelDialog
+        open={importExcelOpen}
+        onOpenChange={setImportExcelOpen}
+      />
     </div>
+  );
+}
+
+function ChevronLeftIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      viewBox="0 0 24 24"
+      className="size-4"
+      {...props}
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+    </svg>
   );
 }
