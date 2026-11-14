@@ -25,7 +25,8 @@ describe("PocketBase Backend Integration Tests", () => {
 
     // 1. Run migrations
     const migrate = spawn(pbBin, [
-      "migrate", "up",
+      "migrate",
+      "up",
       `--dir=${tempDir}`,
       `--migrationsDir=${migrationsDir}`,
     ]);
@@ -38,8 +39,10 @@ describe("PocketBase Backend Integration Tests", () => {
 
     // 2. Create Superuser via CLI before starting serve
     const superuserProc = spawn(pbBin, [
-      "admin", "create",
-      "superuser@test.sa", "SuperPassword123!",
+      "admin",
+      "create",
+      "superuser@test.sa",
+      "SuperPassword123!",
       `--dir=${tempDir}`,
     ]);
     await new Promise<void>((resolve, reject) => {
@@ -403,6 +406,119 @@ describe("PocketBase Backend Integration Tests", () => {
       expect(Array.isArray(data.cities)).toBe(true);
       expect(Array.isArray(data.followUps)).toBe(true);
       expect(Array.isArray(data.recentLogs)).toBe(true);
+    });
+  });
+
+  // --- Test Suite 6: Bulk Excel Import Endpoint ---
+  describe("Bulk Import POST /api/ojl/clients/import", () => {
+    const importRows = (rows: unknown[], token: string) =>
+      fetch(`${pbUrl}/api/ojl/clients/import`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ rows }),
+      });
+
+    it("imports ALL provided rows in one request, coercing unknown select values", async () => {
+      const res = await importRows(
+        [
+          {
+            name: "صالون استيراد 1",
+            phone: "0500000011",
+            city: "مدينة غير موجودة",
+            business_type: "نشاط غريب",
+            source: "مصدر نادر",
+            priority: "عالية جدًا",
+          },
+          {
+            name: "صالون استيراد 2",
+            phone: "05 0000 0012",
+            city: "جدة",
+            business_type: "سبا",
+          },
+          {
+            // Row without any phone must still be imported
+            name: "صالون استيراد بدون هاتف",
+            phone: "",
+          },
+        ],
+        adminPb.authStore.token,
+      );
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.created).toBe(3);
+      expect(data.skippedDuplicates).toBe(0);
+      expect(data.invalid).toBe(0);
+
+      // Verify normalization + coercion + optional phone
+      const all = await adminPb.collection("clients").getFullList({
+        filter: "name ~ 'صالون استيراد'",
+      });
+      expect(all.length).toBe(3);
+      const byName = Object.fromEntries(all.map((c) => [c["name"], c]));
+      expect(byName["صالون استيراد 1"].phone).toBe("966500000011");
+      expect(byName["صالون استيراد 1"].city).toBe("أخرى");
+      expect(byName["صالون استيراد 1"].business_type).toBe("أخرى");
+      expect(byName["صالون استيراد 1"].source).toBe("مصدر آخر");
+      expect(byName["صالون استيراد 1"].priority).toBe("عالية");
+      expect(byName["صالون استيراد 2"].phone).toBe("966500000012");
+      expect(byName["صالون استيراد 2"].city).toBe("جدة");
+      expect(byName["صالون استيراد بدون هاتف"].phone).toBe("");
+      expect(byName["صالون استيراد بدون هاتف"].code).toMatch(/^SAL-\d{4}$/);
+    });
+
+    it("skips duplicates on re-import instead of failing", async () => {
+      const rows = [{ name: "صالون مكرر فريد", phone: "0555111222", city: "الرياض" }];
+
+      const first = await importRows(rows, adminPb.authStore.token);
+      const firstData = await first.json();
+      expect(firstData.created).toBe(1);
+
+      const second = await importRows(rows, adminPb.authStore.token);
+      const secondData = await second.json();
+      expect(secondData.created).toBe(0);
+      expect(secondData.skippedDuplicates).toBe(1);
+    });
+
+    it("skips duplicate rows within the same batch", async () => {
+      const rows = [
+        { name: "صالون داخل الدفعة", phone: "0555333444", city: "الرياض" },
+        { name: "صالون داخل الدفعة", phone: "966555333444", city: "الرياض" },
+      ];
+
+      const res = await importRows(rows, adminPb.authStore.token);
+      const data = await res.json();
+      expect(data.created).toBe(1);
+      expect(data.skippedDuplicates).toBe(1);
+    });
+
+    it("counts rows without a name as invalid without aborting the batch", async () => {
+      const res = await importRows(
+        [
+          { name: "", phone: "0555555557" },
+          { name: "صالون صف بعد فاشل", phone: "0555555558" },
+        ],
+        adminPb.authStore.token,
+      );
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.invalid).toBe(1);
+      expect(data.created).toBe(1);
+    });
+
+    it("rejects agents with 403 and anonymous requests with 401", async () => {
+      const agentRes = await importRows(
+        [{ name: "صالون ممنوع", phone: "0555555559" }],
+        agentPb.authStore.token,
+      );
+      expect(agentRes.status).toBe(403);
+
+      const anonRes = await importRows([{ name: "صالون مجهول", phone: "0555555560" }], "");
+      expect(anonRes.status).toBe(401);
     });
   });
 });

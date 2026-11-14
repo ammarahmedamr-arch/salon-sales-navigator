@@ -32,7 +32,11 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { crmKeys, useUsers } from "@/hooks/use-crm";
-import { normalizePhone } from "@/lib/utils";
+import { safeNormalizePhone } from "@/lib/utils";
+import type { ClientImportResult, ClientImportRow } from "@/lib/types";
+
+/** Rows per request — keeps payloads small and progress smooth. */
+const IMPORT_BATCH_SIZE = 200;
 import type { ClientInput } from "@/lib/types";
 
 interface ParsedSalonRow {
@@ -65,9 +69,7 @@ export function ImportExcelDialog({ open, onOpenChange }: ImportExcelDialogProps
   const [selectedAgentId, setSelectedAgentId] = useState<string>("");
   const [isImporting, setIsImporting] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [importSummary, setImportSummary] = useState<{ success: number; failed: number } | null>(
-    null
-  );
+  const [importSummary, setImportSummary] = useState<ClientImportResult | null>(null);
 
   // Set default agent when users load
   React.useEffect(() => {
@@ -96,10 +98,37 @@ export function ImportExcelDialog({ open, onOpenChange }: ImportExcelDialogProps
       const buffer = await selectedFile.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: "array" });
 
-      // Look for sheet named "العملاء" or fallback to first sheet
-      const sheetName =
-        workbook.SheetNames.find((name) => name.includes("العملاء") || name.includes("صالون")) ||
-        workbook.SheetNames[0];
+      // Look for sheet named "العملاء" or first sheet that contains data
+      let sheetName =
+        workbook.SheetNames.find(
+          (name) =>
+            name.includes("العملاء") ||
+            name.includes("صالون") ||
+            name.includes("مشاغل") ||
+            name.includes("بيانات") ||
+            name.toLowerCase().includes("client")
+        ) || "";
+
+      if (sheetName) {
+        const ws = workbook.Sheets[sheetName];
+        if (!ws || XLSX.utils.sheet_to_json(ws).length === 0) {
+          sheetName = "";
+        }
+      }
+
+      if (!sheetName) {
+        for (const name of workbook.SheetNames) {
+          const ws = workbook.Sheets[name];
+          if (ws && XLSX.utils.sheet_to_json(ws).length > 0) {
+            sheetName = name;
+            break;
+          }
+        }
+      }
+
+      if (!sheetName) {
+        sheetName = workbook.SheetNames[0] || "";
+      }
 
       if (!sheetName) {
         toast.error("الملف لا يحتوي على أوراق عمل صالحة.");
@@ -123,20 +152,54 @@ export function ImportExcelDialog({ open, onOpenChange }: ImportExcelDialogProps
       const rows: ParsedSalonRow[] = [];
 
       for (const row of rawData) {
-        // Find column by common aliases
+        // Find column by common aliases (exact then partial match)
         const findVal = (keys: string[]): string => {
           for (const k of keys) {
             for (const rowKey of Object.keys(row)) {
               if (rowKey.trim().toLowerCase() === k.trim().toLowerCase()) {
-                return String(row[rowKey] ?? "").trim();
+                const val = String(row[rowKey] ?? "").trim();
+                if (val) return val;
+              }
+            }
+          }
+          for (const k of keys) {
+            for (const rowKey of Object.keys(row)) {
+              const cleanRowKey = rowKey.trim().toLowerCase();
+              const cleanK = k.trim().toLowerCase();
+              if (
+                cleanRowKey.includes(cleanK) ||
+                (cleanK.length >= 4 && cleanRowKey.length >= 4 && cleanK.includes(cleanRowKey))
+              ) {
+                const val = String(row[rowKey] ?? "").trim();
+                if (val) return val;
               }
             }
           }
           return "";
         };
 
-        const name = findVal(["اسم الصالون", "الصالون", "اسم العميل", "الاسم", "name", "salon"]);
-        if (!name || name === "اسم الصالون" || name.includes("صف تجريبي")) {
+        const name = findVal([
+          "اسم الصالون",
+          "الاسم التجاري",
+          "اسم المنشأة",
+          "اسم المشغل",
+          "المشغل",
+          "الصالون",
+          "اسم المركز",
+          "المركز",
+          "اسم العميل",
+          "اسم النشاط",
+          "المنشأة",
+          "المحل",
+          "اسم المحل",
+          "الاسم",
+          "name",
+          "salon",
+          "company",
+          "business",
+          "client",
+        ]);
+        if (!name || name === "اسم الصالون" || name === "الاسم التجاري" || name.includes("صف تجريبي")) {
           // Skip header repeats or demo instruction rows
           continue;
         }
@@ -145,15 +208,29 @@ export function ImportExcelDialog({ open, onOpenChange }: ImportExcelDialogProps
           "رقم واتساب/هاتف",
           "رقم الهاتف",
           "رقم الجوال",
-          "الهاتف",
           "الجوال",
+          "الهاتف",
+          "جوال",
+          "هاتف",
           "واتساب",
+          "رقم واتساب",
+          "رقم التواصل",
+          "التواصل",
+          "تواصل",
+          "رقم الاتصال",
+          "الاتصال",
+          "موبايل",
+          "رقم الموبايل",
           "phone",
           "mobile",
+          "tel",
+          "whatsapp",
+          "contact",
         ]);
 
         const city = findVal(["المدينة", "city"]) || "الرياض";
-        const business_type = findVal(["نوع النشاط", "النشاط", "نوع الصالون", "business_type"]) || "صالون نسائي";
+        const business_type =
+          findVal(["نوع النشاط", "النشاط", "نوع الصالون", "business_type"]) || "صالون نسائي";
         const contact_person = findVal(["اسم المسؤول", "المسؤول", "جهة الاتصال", "contact_person"]);
         const website_url = findVal(["رابط الموقع/إنستجرام", "الموقع", "إنستجرام", "website_url"]);
         const source = findVal(["مصدر البيانات", "المصدر", "source"]) || "بحث يدوي";
@@ -193,13 +270,13 @@ export function ImportExcelDialog({ open, onOpenChange }: ImportExcelDialogProps
       {
         "رقم العميل": "SAL-0001",
         "اسم الصالون": "صالون لمسات الجمال",
-        "المدينة": "الرياض",
+        المدينة: "الرياض",
         "نوع النشاط": "صالون نسائي",
         "اسم المسؤول": "أم سارة",
         "رقم واتساب/هاتف": "0551234567",
         "رابط الموقع/إنستجرام": "https://instagram.com/beauty_salon",
         "مصدر البيانات": "خرائط Google",
-        "الأولوية": "عالية",
+        الأولوية: "عالية",
         "ملاحظات / احتياج العميل": "مهتمون بنظام إدارة المواعيد",
         "المسؤول عن المتابعة": "محمد سيد",
       },
@@ -221,14 +298,8 @@ export function ImportExcelDialog({ open, onOpenChange }: ImportExcelDialogProps
     const activeAgents = teamUsers.filter((u) => u.role === "agent");
     const eligibleTeam = activeAgents.length > 0 ? activeAgents : teamUsers;
 
-    let successCount = 0;
-    let failCount = 0;
-
-    for (let i = 0; i < parsedRows.length; i++) {
-      const row = parsedRows[i];
-      if (!row) continue;
-
-      // Determine owner
+    // Build the full payload first — owner distribution is deterministic per row.
+    const payload: ClientImportRow[] = parsedRows.map((row, i) => {
       let ownerId = "";
       if (distributionMode === "unassigned") {
         ownerId = "";
@@ -241,52 +312,73 @@ export function ImportExcelDialog({ open, onOpenChange }: ImportExcelDialogProps
         const matched = teamUsers.find(
           (u) =>
             u.name.trim().toLowerCase() === row.excelOwnerName?.trim().toLowerCase() ||
-            u.email.toLowerCase().includes(row.excelOwnerName?.trim().toLowerCase() || "")
+            u.email.toLowerCase().includes(row.excelOwnerName?.trim().toLowerCase() || ""),
         );
         ownerId = matched ? matched.id : "";
       }
 
-      // Format mobile
-      const cleanPhone = normalizePhone(row.phone || "0500000000");
-
-      const input: ClientInput = {
+      return {
         name: row.name,
-        phone: cleanPhone,
-        city: row.city as any,
-        business_type: row.business_type as any,
+        phone: row.phone || "",
+        city: row.city,
+        business_type: row.business_type,
         contact_person: row.contact_person,
         website_url: row.website_url,
-        source: (row.source || "بحث يدوي") as any,
-        priority: (row.priority || "متوسطة") as any,
-        contact_status: "لم يتم التواصل",
-        outcome: "غير محدد",
-        last_contact_at: null,
-        next_follow_up_date: null,
-        chat_url: "",
+        source: row.source || "بحث يدوي",
+        priority: row.priority || "متوسطة",
         notes: row.notes,
         owner: ownerId,
       };
+    });
 
-      try {
-        await api.clients.create(input);
-        successCount++;
-      } catch (err) {
-        console.warn(`Failed to import row ${row.name}:`, err);
-        failCount++;
+    const summary: ClientImportResult = {
+      created: 0,
+      skippedDuplicates: 0,
+      invalid: 0,
+      invalidReasons: [],
+      failed: 0,
+      failedReasons: [],
+    };
+    setImportSummary({ ...summary });
+
+    try {
+      // Send every row, in batches. Duplicates/invalid rows are skipped
+      // server-side — never abort the whole import because of one bad row.
+      for (let i = 0; i < payload.length; i += IMPORT_BATCH_SIZE) {
+        const chunk = payload.slice(i, i + IMPORT_BATCH_SIZE);
+        const res = await api.clients.importBatch(chunk);
+
+        summary.created += res.created;
+        summary.skippedDuplicates += res.skippedDuplicates;
+        summary.invalid += res.invalid;
+        summary.invalidReasons.push(...res.invalidReasons);
+        summary.failed += res.failed;
+        summary.failedReasons.push(...res.failedReasons);
+
+        setImportSummary({ ...summary });
+        setProgress(Math.min(100, Math.round(((i + chunk.length) / payload.length) * 100)));
       }
 
-      setProgress(Math.round(((i + 1) / parsedRows.length) * 100));
+      // Invalidate CRM queries to refresh Dashboard and Clients list
+      queryClient.invalidateQueries({ queryKey: crmKeys.clients });
+      queryClient.invalidateQueries({ queryKey: crmKeys.stats });
+      queryClient.invalidateQueries({ queryKey: crmKeys.recentLogs });
+
+      const skippedText = summary.skippedDuplicates
+        ? ` وتم تجاهل ${summary.skippedDuplicates} صالون مكرر`
+        : "";
+      toast.success(`تم استيراد ${summary.created} صالون جديد بنجاح${skippedText}.`);
+    } catch (err: any) {
+      console.error("Import error:", err);
+      toast.error(
+        "تعذّر إكمال الاستيراد: " +
+          (err?.message || "خطأ غير متوقع") +
+          ` — تم استيراد ${summary.created} صالون قبل التوقف.`,
+      );
+    } finally {
+      setIsImporting(false);
+      setProgress(100);
     }
-
-    setIsImporting(false);
-    setImportSummary({ success: successCount, failed: failCount });
-
-    // Invalidate CRM queries to refresh Dashboard and Clients list
-    queryClient.invalidateQueries({ queryKey: crmKeys.clients });
-    queryClient.invalidateQueries({ queryKey: crmKeys.stats });
-    queryClient.invalidateQueries({ queryKey: crmKeys.recentLogs });
-
-    toast.success(`تم استيراد ${successCount} صالون بنجاح وتوزيعهم على الفريق!`);
   };
 
   return (
@@ -333,7 +425,9 @@ export function ImportExcelDialog({ open, onOpenChange }: ImportExcelDialogProps
           {!file ? (
             <div className="relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border bg-muted/20 p-8 text-center transition-colors hover:border-primary/50">
               <UploadCloud className="size-12 text-muted-foreground" />
-              <p className="mt-3 text-sm font-semibold">اسحب وأفلت ملف Excel هنا أو اضغط للاختيار</p>
+              <p className="mt-3 text-sm font-semibold">
+                اسحب وأفلت ملف Excel هنا أو اضغط للاختيار
+              </p>
               <p className="mt-1 text-xs text-muted-foreground">يدعم ملفات .xlsx و .xls و .csv</p>
               <input
                 type="file"
@@ -352,6 +446,10 @@ export function ImportExcelDialog({ open, onOpenChange }: ImportExcelDialogProps
                   <p className="text-sm font-semibold">{file.name}</p>
                   <p className="text-xs text-muted-foreground">
                     تم استخراج {parsedRows.length} صالون جاهز
+                    {(() => {
+                      const noPhone = parsedRows.filter((r) => !safeNormalizePhone(r.phone)).length;
+                      return noPhone > 0 ? ` · ${noPhone} بدون رقم صحيح` : "";
+                    })()}
                   </p>
                 </div>
               </div>
@@ -509,24 +607,55 @@ export function ImportExcelDialog({ open, onOpenChange }: ImportExcelDialogProps
           )}
 
           {/* Success Summary */}
-          {importSummary && (
+          {importSummary && !isImporting && (
             <div className="flex flex-col items-center justify-center rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-6 text-center">
               <CheckCircle2 className="size-12 text-emerald-500" />
-              <h3 className="mt-3 text-lg font-bold">اكتمل الاستيراد والتوزيع بنجاح!</h3>
+              <h3 className="mt-3 text-lg font-bold">اكتمل الاستيراد!</h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                تمت إضافة <span className="font-bold text-emerald-600">{importSummary.success}</span> صالون إلى قاعدة البيانات وتوزيعهم على الفريق.
+                تمت إضافة{" "}
+                <span className="font-bold text-emerald-600">{importSummary.created}</span> صالون
+                جديد إلى قاعدة البيانات.
               </p>
-              {importSummary.failed > 0 && (
-                <p className="mt-1 text-xs text-amber-600">
-                  تعذر استيراد {importSummary.failed} صفوف لوجود أخطاء في البيانات.
-                </p>
+              <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs">
+                {importSummary.skippedDuplicates > 0 && (
+                  <span className="rounded-full bg-amber-500/10 px-3 py-1 font-semibold text-amber-600">
+                    تم تجاهل {importSummary.skippedDuplicates} صالون مكرر
+                  </span>
+                )}
+                {importSummary.invalid > 0 && (
+                  <span className="rounded-full bg-amber-500/10 px-3 py-1 font-semibold text-amber-600">
+                    {importSummary.invalid} صف بيانات ناقصة (بدون اسم)
+                  </span>
+                )}
+                {importSummary.failed > 0 && (
+                  <span className="rounded-full bg-red-500/10 px-3 py-1 font-semibold text-red-600">
+                    تعذر استيراد {importSummary.failed} صف
+                  </span>
+                )}
+                {importSummary.created === 0 &&
+                  importSummary.skippedDuplicates === 0 &&
+                  importSummary.invalid === 0 &&
+                  importSummary.failed === 0 && (
+                    <span className="text-muted-foreground">
+                      لم يتم العثور على صفوف جديدة للاستيراد.
+                    </span>
+                  )}
+              </div>
+              {importSummary.failedReasons.length > 0 && (
+                <div className="mt-3 max-h-32 w-full space-y-1 overflow-y-auto rounded-xl border border-border bg-card p-3 text-start text-[11px] text-muted-foreground">
+                  {importSummary.failedReasons.map((f, i) => (
+                    <p key={i}>
+                      • {f.name || `صف #${f.index + 1}`}: {f.reason}
+                    </p>
+                  ))}
+                </div>
               )}
             </div>
           )}
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0">
-          {!importSummary ? (
+          {!(importSummary && !isImporting) ? (
             <>
               <Button
                 type="button"
@@ -557,11 +686,7 @@ export function ImportExcelDialog({ open, onOpenChange }: ImportExcelDialogProps
               </Button>
             </>
           ) : (
-            <Button
-              type="button"
-              onClick={() => onOpenChange(false)}
-              className="w-full rounded-xl"
-            >
+            <Button type="button" onClick={() => onOpenChange(false)} className="w-full rounded-xl">
               إغلاق
             </Button>
           )}

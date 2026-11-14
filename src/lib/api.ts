@@ -1,9 +1,16 @@
 import { pb } from "./pb";
-import { computeFollowUpState, getRiyadhDateKey, normalizePhone } from "./utils";
+import {
+  computeFollowUpState,
+  getRiyadhDateKey,
+  normalizePhone,
+  safeNormalizePhone,
+} from "./utils";
 import type {
   AppUser,
   Client,
   ClientFilters,
+  ClientImportResult,
+  ClientImportRow,
   ClientInput,
   ClientListParams,
   ContactLog,
@@ -13,6 +20,9 @@ import type {
   DashboardStats,
   PaginatedResult,
 } from "./types";
+
+/** PocketBase server-side max per page. */
+const MAX_PER_PAGE = 500;
 
 /**
  * Maps a PocketBase record to the frontend typed Client interface.
@@ -50,7 +60,9 @@ function mapClientRecord(rec: any, attemptsCount = 0): Client {
  * Maps a PocketBase record to the frontend typed ContactLog interface.
  */
 function mapLogRecord(rec: any): ContactLog {
-  const clientData = rec["expand"]?.["client"] ? mapClientRecord(rec["expand"]["client"]) : undefined;
+  const clientData = rec["expand"]?.["client"]
+    ? mapClientRecord(rec["expand"]["client"])
+    : undefined;
   const createdByName =
     rec["expand"]?.["created_by"]?.["name"] ||
     rec["expand"]?.["created_by"]?.["email"] ||
@@ -88,7 +100,7 @@ export const api = {
   clients: {
     async list(params: ClientListParams = {}): Promise<PaginatedResult<Client>> {
       const page = Math.max(1, params.page ?? 1);
-      const perPage = Math.max(1, params.perPage ?? 10);
+      const perPage = Math.min(MAX_PER_PAGE, Math.max(1, params.perPage ?? 10));
 
       // Merge flat & nested filters
       const rawFilters: ClientFilters = {
@@ -109,7 +121,9 @@ export const api = {
       if (rawFilters.search && rawFilters.search.trim() !== "") {
         const q = rawFilters.search.trim();
         filterParams["search"] = q;
-        filterParts.push("(name ~ {:search} || code ~ {:search} || phone ~ {:search} || contact_person ~ {:search})");
+        filterParts.push(
+          "(name ~ {:search} || code ~ {:search} || phone ~ {:search} || contact_person ~ {:search})",
+        );
       }
 
       if (rawFilters.city && rawFilters.city !== "الكل") {
@@ -157,15 +171,15 @@ export const api = {
 
         if (rawFilters.follow_up_state === "متأخرة") {
           filterParts.push(
-            "next_follow_up_date != '' && next_follow_up_date < {:today} && outcome != 'مشترك' && outcome != 'غير مهتم' && outcome != 'لا يرغب بالتواصل'"
+            "next_follow_up_date != '' && next_follow_up_date < {:today} && outcome != 'مشترك' && outcome != 'غير مهتم' && outcome != 'لا يرغب بالتواصل'",
           );
         } else if (rawFilters.follow_up_state === "مستحقة") {
           filterParts.push(
-            "next_follow_up_date = {:today} && outcome != 'مشترك' && outcome != 'غير مهتم' && outcome != 'لا يرغب بالتواصل'"
+            "next_follow_up_date = {:today} && outcome != 'مشترك' && outcome != 'غير مهتم' && outcome != 'لا يرغب بالتواصل'",
           );
         } else if (rawFilters.follow_up_state === "لاحقًا") {
           filterParts.push(
-            "next_follow_up_date > {:today} && outcome != 'مشترك' && outcome != 'غير مهتم' && outcome != 'لا يرغب بالتواصل'"
+            "next_follow_up_date > {:today} && outcome != 'مشترك' && outcome != 'غير مهتم' && outcome != 'لا يرغب بالتواصل'",
           );
         }
       }
@@ -211,10 +225,12 @@ export const api = {
     },
 
     async create(input: ClientInput): Promise<Client> {
-      const payload: Record<string, any> = {
-        ...input,
-        phone: normalizePhone(input.phone),
-      };
+      const payload: Record<string, any> = { ...input };
+      if (payload["phone"]) {
+        payload["phone"] = normalizePhone(payload["phone"]);
+      } else {
+        payload["phone"] = "";
+      }
       if (!payload["owner"] || payload["owner"] === "none") {
         payload["owner"] = null;
       }
@@ -234,7 +250,8 @@ export const api = {
         payload["phone"] = normalizePhone(payload["phone"]);
       }
       if (payload["owner"] !== undefined) {
-        payload["owner"] = payload["owner"] && payload["owner"] !== "none" ? payload["owner"] : null;
+        payload["owner"] =
+          payload["owner"] && payload["owner"] !== "none" ? payload["owner"] : null;
       }
       if (payload["next_follow_up_date"] !== undefined && !payload["next_follow_up_date"]) {
         payload["next_follow_up_date"] = null;
@@ -249,12 +266,36 @@ export const api = {
     async delete(id: string): Promise<boolean> {
       return await pb.collection("clients").delete(id);
     },
+
+    /**
+     * Sends one chunk of parsed Excel rows to the server-side bulk import
+     * endpoint. The server dedupes (by phone, or name+city without phone),
+     * coerces select values and tolerates per-row failures.
+     */
+    async importBatch(rows: ClientImportRow[]): Promise<ClientImportResult> {
+      return (await pb.send("/api/ojl/clients/import", {
+        method: "POST",
+        body: { rows },
+      })) as ClientImportResult;
+    },
+
+    /**
+     * Fetches every client (auto-paginated in chunks of MAX_PER_PAGE),
+     * so callers are never silently capped at 500 records.
+     */
+    async listAll(): Promise<Client[]> {
+      const records = await pb.collection("clients").getFullList({
+        sort: "-created",
+        expand: "owner",
+      });
+      return records.map((r) => mapClientRecord(r));
+    },
   },
 
   contactLogs: {
     async list(params: ContactLogListParams = {}): Promise<PaginatedResult<ContactLog>> {
       const page = Math.max(1, params.page ?? 1);
-      const perPage = Math.max(1, params.perPage ?? 10);
+      const perPage = Math.min(MAX_PER_PAGE, Math.max(1, params.perPage ?? 10));
 
       const rawFilters: ContactLogFilters = {
         channel: params.channel ?? params.filters?.channel,
@@ -301,7 +342,9 @@ export const api = {
 
       if (rawFilters.search && rawFilters.search.trim() !== "") {
         filterParams["search"] = rawFilters.search.trim();
-        filterParts.push("(code ~ {:search} || reply_summary ~ {:search} || client.name ~ {:search} || client.phone ~ {:search})");
+        filterParts.push(
+          "(code ~ {:search} || reply_summary ~ {:search} || client.name ~ {:search} || client.phone ~ {:search})",
+        );
       }
 
       let sort = "-contacted_at";
@@ -492,7 +535,7 @@ export const api = {
         email?: string;
         password?: string;
         role?: "admin" | "agent";
-      }
+      },
     ): Promise<AppUser> {
       const payload: Record<string, any> = {};
       if (data.name !== undefined) payload["name"] = data.name;

@@ -18,10 +18,61 @@ function normalizeSaudiPhone(phone) {
   if (/^05\d{8}$/.test(digits)) {
     return "966" + digits.slice(1);
   }
+  if (/^5\d{8}$/.test(digits)) {
+    return "966" + digits;
+  }
   if (/^9665\d{8}$/.test(digits)) {
     return digits;
   }
+  if (/^009665\d{8}$/.test(digits)) {
+    return digits.slice(2);
+  }
   throw new BadRequestError("رقم الهاتف غير صحيح، يجب أن يكون رقم جوال سعودي يبدأ بـ 05");
+}
+
+/**
+ * Non-throwing variant used by bulk import: unknown/empty phones are stored
+ * as "" instead of aborting the whole batch.
+ */
+function normalizeSaudiPhoneLoose(phone) {
+  if (!phone) {
+    return "";
+  }
+  const digits = String(phone).replace(/\D/g, "");
+  if (/^05\d{8}$/.test(digits)) {
+    return "966" + digits.slice(1);
+  }
+  if (/^5\d{8}$/.test(digits)) {
+    return "966" + digits;
+  }
+  if (/^9665\d{8}$/.test(digits)) {
+    return digits;
+  }
+  if (/^009665\d{8}$/.test(digits)) {
+    return digits.slice(2);
+  }
+  return "";
+}
+
+/**
+ * Coerces an arbitrary Excel value into an allowed select value.
+ * Empty input → emptyFallback; unmatched input → unknownFallback.
+ * Used by bulk import.
+ */
+function pickAllowed(value, allowed, emptyFallback, unknownFallback) {
+  const str = String(value || "").trim();
+  if (!str) {
+    return emptyFallback;
+  }
+  if (allowed.includes(str)) {
+    return str;
+  }
+  for (const candidate of allowed) {
+    if (str.includes(candidate) || candidate.includes(str)) {
+      return candidate;
+    }
+  }
+  return unknownFallback === undefined ? emptyFallback : unknownFallback;
 }
 
 function deriveClientUpdate(result) {
@@ -57,5 +108,7 @@ function deriveClientUpdate(result) {
 module.exports = {
   getRiyadhTodayKey,
   normalizeSaudiPhone,
+  normalizeSaudiPhoneLoose,
+  pickAllowed,
   deriveClientUpdate,
 };

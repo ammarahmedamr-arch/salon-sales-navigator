@@ -60,6 +60,29 @@ export const clientSchema = z.object({
 
 export type ClientInput = z.infer<typeof clientSchema>;
 
+/** One parsed Excel row sent to the bulk import endpoint. */
+export interface ClientImportRow {
+  name: string;
+  phone: string;
+  city: string;
+  business_type: string;
+  contact_person: string;
+  website_url: string;
+  source: string;
+  priority: string;
+  notes: string;
+  owner: string;
+}
+
+export interface ClientImportResult {
+  created: number;
+  skippedDuplicates: number;
+  invalid: number;
+  invalidReasons: { index: number; name: string; reason: string }[];
+  failed: number;
+  failedReasons: { index: number; name: string; reason: string }[];
+}
+
 export interface Client extends ClientInput {
   id: string;
   code: string;
@@ -87,7 +110,10 @@ export interface ContactLogInput {
   outcome?: ClientOutcome | undefined;
 }
 
-export interface ContactLog extends Omit<ContactLogInput, "update_client" | "contact_status" | "outcome"> {
+export interface ContactLog extends Omit<
+  ContactLogInput,
+  "update_client" | "contact_status" | "outcome"
+> {
   id: string;
   code: string;
   client_id: string;

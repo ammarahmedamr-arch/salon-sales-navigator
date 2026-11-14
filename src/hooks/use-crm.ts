@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import pb from "@/lib/pb";
 import type {
+  ClientImportRow,
   ClientInput,
   ClientListParams,
   ContactLogInput,
@@ -23,6 +24,17 @@ export function useClients(params: ClientListParams = {}) {
   return useQuery({
     queryKey: [...crmKeys.clients, params],
     queryFn: () => api.clients.list(params),
+  });
+}
+
+/**
+ * Fetches ALL clients (auto-paginated server-side). Use this instead of
+ * inflating perPage beyond PocketBase's 500-record server limit.
+ */
+export function useClientsAll() {
+  return useQuery({
+    queryKey: crmKeys.clients,
+    queryFn: api.clients.listAll,
   });
 }
 
@@ -144,6 +156,14 @@ export function useDeleteClient() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: api.clients.delete,
+    onSuccess: () => invalidateCrm(queryClient),
+  });
+}
+
+export function useImportClients() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (rows: ClientImportRow[]) => api.clients.importBatch(rows),
     onSuccess: () => invalidateCrm(queryClient),
   });
 }

@@ -33,9 +33,11 @@ onRecordViewRequest((e) => {
 onModelBeforeCreate((e) => {
   const { normalizeSaudiPhone } = require(__hooks + "/helpers.js");
 
-  // Normalize phone
+  // Normalize phone when provided ("" is allowed after phone became optional)
   const rawPhone = e.model.get("phone");
-  e.model.set("phone", normalizeSaudiPhone(rawPhone));
+  if (rawPhone) {
+    e.model.set("phone", normalizeSaudiPhone(rawPhone));
+  }
 
   // Auto-generate code SAL-XXXX if empty
   if (!e.model.get("code")) {
@@ -171,6 +173,205 @@ routerAdd("POST", "/api/ojl/contact-logs", (c) => {
   return c.json(200, {
     log: createdLog,
     client: updatedClient,
+  });
+});
+
+// -------------------------------------------------------------
+// 3b. Custom Route: POST /api/ojl/clients/import
+// Admin-only bulk import. Imports ALL provided rows in one request,
+// skipping duplicates (by phone, or name+city when phone is missing)
+// instead of failing. Select fields are coerced to allowed values.
+// -------------------------------------------------------------
+routerAdd("POST", "/api/ojl/clients/import", (c) => {
+  const { normalizeSaudiPhoneLoose, pickAllowed } = require(__hooks + "/helpers.js");
+
+  const authRecord = c.get("authRecord");
+  if (!authRecord) {
+    throw new UnauthorizedError("يجب تسجيل الدخول أولًا");
+  }
+  if (authRecord.get("role") !== "admin") {
+    throw new ForbiddenError("الاستيراد متاح للمدير فقط");
+  }
+
+  const data = $apis.requestInfo(c).data;
+  const rows = Array.isArray(data.rows) ? data.rows : [];
+  if (rows.length === 0) {
+    throw new BadRequestError("لا توجد صفوف للاستيراد");
+  }
+  if (rows.length > 500) {
+    throw new BadRequestError("الحد الأقصى 500 صف لكل طلب");
+  }
+
+  const CITIES = [
+    "الرياض", "جدة", "مكة المكرمة", "المدينة المنورة", "الدمام",
+    "الخبر", "الطائف", "أبها", "تبوك", "بريدة", "أخرى",
+  ];
+  const BUSINESS_TYPES = ["صالون نسائي", "صالون رجالي", "مركز تجميل", "سبا", "حلاقة", "أخرى"];
+  const SOURCES = [
+    "خرائط Google", "إنستجرام", "موقع إلكتروني", "دليل أعمال",
+    "إحالة", "بحث يدوي", "مصدر آخر",
+  ];
+  const PRIORITIES = ["عالية", "متوسطة", "منخفضة"];
+
+  const usersCollection = $app.dao().findCollectionByNameOrId("users");
+  const clientsCollection = $app.dao().findCollectionByNameOrId("clients");
+
+  // --- 1. Validate, normalize and coerce every row (never throws per row) ---
+  const prepared = [];
+  const invalid = [];
+  for (let i = 0; i < rows.length; i++) {
+    const raw = rows[i] || {};
+    const name = String(raw.name || "").trim();
+    if (!name) {
+      invalid.push({ index: i, name: "", reason: "اسم الصالون مفقود" });
+      continue;
+    }
+
+    const phone = normalizeSaudiPhoneLoose(raw.phone);
+    const city = pickAllowed(raw.city, CITIES, "الرياض", "أخرى");
+    const businessType = pickAllowed(raw.business_type, BUSINESS_TYPES, "صالون نسائي", "أخرى");
+    const source = pickAllowed(raw.source, SOURCES, "بحث يدوي", "مصدر آخر");
+    const priority = pickAllowed(raw.priority, PRIORITIES, "متوسطة");
+
+    prepared.push({
+      index: i,
+      name,
+      phone,
+      city,
+      business_type: businessType,
+      contact_person: String(raw.contact_person || "").trim(),
+      website_url: String(raw.website_url || "").trim(),
+      source,
+      priority,
+      notes: String(raw.notes || "").trim(),
+      owner: String(raw.owner || "").trim(),
+    });
+  }
+
+  // --- 2. Deduplicate inside the batch itself ---
+  const batchPhones = {}; // phone -> true
+  const batchNameCity = {}; // name|city -> true
+  const uniqueRows = [];
+  let batchDuplicates = 0;
+  for (const row of prepared) {
+    const key = row.phone ? row.phone : `${row.name}|${row.city}`;
+    const seen = row.phone ? batchPhones[row.phone] : batchNameCity[key];
+    if (seen) {
+      batchDuplicates++;
+      continue;
+    }
+    if (row.phone) {
+      batchPhones[row.phone] = true;
+    }
+    batchNameCity[`${row.name}|${row.city}`] = true;
+    uniqueRows.push(row);
+  }
+
+  // --- 3. Skip rows that already exist in the database ---
+  const dbDuplicates = {}; // key -> true
+
+  const withPhone = uniqueRows.filter((r) => r.phone);
+  for (let i = 0; i < withPhone.length; i += 100) {
+    const chunk = withPhone.slice(i, i + 100);
+    const phones = chunk.map((r) => r.phone);
+    const filter = phones.map((p) => `phone = '${p}'`).join(" || ");
+    try {
+      const found = $app.dao().findRecordsByFilter(
+        clientsCollection.id,
+        filter,
+        "",
+        1000,
+        0
+      );
+      for (const rec of found) {
+        dbDuplicates[rec.getString("phone")] = true;
+      }
+    } catch (err) {
+      console.warn("import dedupe phone lookup failed:", err);
+    }
+  }
+
+  const withoutPhone = uniqueRows.filter((r) => !r.phone);
+  for (let i = 0; i < withoutPhone.length; i += 50) {
+    const chunk = withoutPhone.slice(i, i + 50);
+    const names = chunk
+      .map((r) => r.name.replace(/'/g, "''"))
+      .map((n) => `name = '${n}'`)
+      .join(" || ");
+    try {
+      const found = $app.dao().findRecordsByFilter(
+        clientsCollection.id,
+        names,
+        "",
+        1000,
+        0
+      );
+      for (const rec of found) {
+        dbDuplicates[`${rec.getString("name")}|${rec.getString("city")}`] = true;
+      }
+    } catch (err) {
+      console.warn("import dedupe name lookup failed:", err);
+    }
+  }
+
+  // --- 4. Create the remaining rows (per-row error tolerance) ---
+  const toCreate = [];
+  let skippedDuplicates = 0;
+  for (const row of uniqueRows) {
+    const key = row.phone ? row.phone : `${row.name}|${row.city}`;
+    if (dbDuplicates[key]) {
+      skippedDuplicates++;
+      continue;
+    }
+    toCreate.push(row);
+  }
+
+  let created = 0;
+  const failed = [];
+  for (const row of toCreate) {
+    const record = new Record(clientsCollection);
+    record.set("name", row.name);
+    record.set("phone", row.phone);
+    record.set("city", row.city);
+    record.set("business_type", row.business_type);
+    record.set("contact_person", row.contact_person);
+    record.set("website_url", row.website_url);
+    record.set("source", row.source);
+    record.set("priority", row.priority);
+    record.set("notes", row.notes);
+    record.set("contact_status", "لم يتم التواصل");
+    record.set("outcome", "غير محدد");
+
+    if (row.owner) {
+      try {
+        const ownerRec = $app.dao().findRecordById(usersCollection.id, row.owner);
+        if (ownerRec) {
+          record.set("owner", ownerRec.id);
+        }
+      } catch {
+        // Unknown owner id from a stale token — import unassigned instead of failing
+      }
+    }
+
+    try {
+      $app.dao().saveRecord(record);
+      created++;
+    } catch (err) {
+      failed.push({
+        index: row.index,
+        name: row.name,
+        reason: err && err.message ? String(err.message) : "خطأ غير معروف",
+      });
+    }
+  }
+
+  return c.json(200, {
+    created,
+    skippedDuplicates: batchDuplicates + skippedDuplicates,
+    invalid: invalid.length,
+    invalidReasons: invalid.slice(0, 20),
+    failed: failed.length,
+    failedReasons: failed.slice(0, 20),
   });
 });
 

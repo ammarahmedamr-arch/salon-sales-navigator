@@ -233,6 +233,18 @@ async function main() {
             if (byCode.items.length > 0) existing = byCode.items[0];
           }
 
+          // Skip duplicates by phone (idempotent re-runs)
+          if (!existing) {
+            const byPhone = await pb.collection("clients").getList(1, 1, {
+              filter: pb.filter("phone = {:phone}", { phone }),
+            });
+            if (byPhone.items.length > 0) {
+              skipped++;
+              console.log(`Row ${rowNum}: Skipped "${name}" (Duplicate phone: ${phone})`);
+              continue;
+            }
+          }
+
           if (existing) {
             await pb.collection("clients").update(existing.id, payload);
             clientCodeToId.set(existing.code, existing.id);

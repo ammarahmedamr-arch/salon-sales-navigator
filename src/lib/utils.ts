@@ -55,7 +55,12 @@ export function computeFollowUpState(
   outcome?: Client["outcome"],
   referenceDate: Date = new Date(),
 ): FollowUpState {
-  if (!nextDate || outcome === "مشترك" || outcome === "غير مهتم" || outcome === "لا يرغب بالتواصل") {
+  if (
+    !nextDate ||
+    outcome === "مشترك" ||
+    outcome === "غير مهتم" ||
+    outcome === "لا يرغب بالتواصل"
+  ) {
     return "";
   }
   const target = nextDate.slice(0, 10);
@@ -107,16 +112,34 @@ export function formatDateTime(value: string): string {
 export function normalizePhone(phone: string): string {
   const digits = phone.replace(/\D/g, "");
   if (/^05\d{8}$/.test(digits)) return `966${digits.slice(1)}`;
+  if (/^5\d{8}$/.test(digits)) return `966${digits}`;
   if (/^9665\d{8}$/.test(digits)) return digits;
+  if (/^009665\d{8}$/.test(digits)) return digits.slice(2);
   throw new Error("رقم الهاتف يجب أن يكون سعوديًا ويبدأ بـ 05");
 }
 
+/**
+ * Non-throwing variant used by bulk import and rendering paths:
+ * returns null for empty/invalid phones instead of aborting the flow.
+ */
+export function safeNormalizePhone(phone: string | null | undefined): string | null {
+  if (!phone) return null;
+  const digits = phone.replace(/\D/g, "");
+  if (/^05\d{8}$/.test(digits)) return `966${digits.slice(1)}`;
+  if (/^5\d{8}$/.test(digits)) return `966${digits}`;
+  if (/^9665\d{8}$/.test(digits)) return digits;
+  if (/^009665\d{8}$/.test(digits)) return digits.slice(2);
+  return null;
+}
+
 export function waLink(phone: string): string {
-  return `https://wa.me/${normalizePhone(phone)}`;
+  const normalized = safeNormalizePhone(phone);
+  return normalized ? `https://wa.me/${normalized}` : "";
 }
 
 export function buildWhatsAppUrl(phone: string, text?: string): string {
   const base = waLink(phone);
+  if (!base) return "";
   return text ? `${base}?text=${encodeURIComponent(text)}` : base;
 }
 
@@ -149,8 +172,7 @@ export function exportCsv(
   headers: string[],
   rows: Array<Array<string | number | null>>,
 ) {
-  const escape = (value: string | number | null) =>
-    `"${String(value ?? "").replace(/"/g, '""')}"`;
+  const escape = (value: string | number | null) => `"${String(value ?? "").replace(/"/g, '""')}"`;
   const csv = `\uFEFF${[headers, ...rows].map((row) => row.map(escape).join(",")).join("\r\n")}`;
   const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
   const anchor = document.createElement("a");
